@@ -23,8 +23,15 @@ type RowItemProps = {
 
 function RowItem({ chat, index, total, palette, isArabic, onOpenConversation, dotPulse }: RowItemProps) {
   const opacity = useRef(new Animated.Value(0)).current;
-  const translateX = useRef(new Animated.Value(-20)).current;
+  const translateX = useRef(new Animated.Value(isArabic ? 22 : -22)).current;
+  const badgeScale = useRef(new Animated.Value(1)).current;
   const scale = useRef(new Animated.Value(1)).current;
+  const hoverShift = useRef(new Animated.Value(0)).current;
+  const avatarScale = useRef(new Animated.Value(1)).current;
+  const avatarRotate = useRef(new Animated.Value(0)).current;
+  const arrowShift = useRef(new Animated.Value(0)).current;
+  const shimmerOpacity = useRef(new Animated.Value(0)).current;
+  const shimmerX = useRef(new Animated.Value(isArabic ? 120 : -120)).current;
 
   useEffect(() => {
     Animated.parallel([
@@ -44,16 +51,67 @@ function RowItem({ chat, index, total, palette, isArabic, onOpenConversation, do
     ]).start();
   }, [index, opacity, translateX]);
 
+  useEffect(() => {
+    if (!chat.unread) return;
+
+    const bounce = Animated.loop(
+      Animated.sequence([
+        Animated.timing(badgeScale, { toValue: 1.12, duration: 650, useNativeDriver: true }),
+        Animated.timing(badgeScale, { toValue: 1, duration: 650, useNativeDriver: true }),
+      ])
+    );
+
+    bounce.start();
+    return () => bounce.stop();
+  }, [badgeScale, chat.unread]);
+
+  const hoverDirection = isArabic ? -1 : 1;
+  const avatarRotateDeg = avatarRotate.interpolate({
+    inputRange: [0, 1],
+    outputRange: ['0deg', `${4 * hoverDirection}deg`],
+  });
+
+  const animateHoverIn = () => {
+    shimmerX.setValue(-120 * hoverDirection);
+    Animated.parallel([
+      Animated.spring(scale, { toValue: 1.02, useNativeDriver: true, tension: 240, friction: 16 }),
+      Animated.spring(hoverShift, { toValue: 5 * hoverDirection, useNativeDriver: true, tension: 240, friction: 16 }),
+      Animated.spring(avatarScale, { toValue: 1.1, useNativeDriver: true, tension: 240, friction: 16 }),
+      Animated.timing(avatarRotate, { toValue: 1, duration: 180, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
+      Animated.spring(arrowShift, { toValue: 3 * hoverDirection, useNativeDriver: true, tension: 240, friction: 16 }),
+      Animated.timing(shimmerOpacity, { toValue: 0.12, duration: 160, useNativeDriver: true }),
+      Animated.timing(shimmerX, {
+        toValue: 180 * hoverDirection,
+        duration: 520,
+        easing: Easing.out(Easing.cubic),
+        useNativeDriver: true,
+      }),
+    ]).start();
+  };
+
+  const animateHoverOut = () => {
+    Animated.parallel([
+      Animated.spring(scale, { toValue: 1, useNativeDriver: true, tension: 240, friction: 16 }),
+      Animated.spring(hoverShift, { toValue: 0, useNativeDriver: true, tension: 240, friction: 16 }),
+      Animated.spring(avatarScale, { toValue: 1, useNativeDriver: true, tension: 240, friction: 16 }),
+      Animated.timing(avatarRotate, { toValue: 0, duration: 160, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
+      Animated.spring(arrowShift, { toValue: 0, useNativeDriver: true, tension: 240, friction: 16 }),
+      Animated.timing(shimmerOpacity, { toValue: 0, duration: 160, useNativeDriver: true }),
+    ]).start();
+  };
+
   return (
     <Animated.View
       style={[
         index < total - 1 && styles.rowDivider,
-        { borderBottomColor: palette.border, opacity, transform: [{ translateX }, { scale }] },
+        { borderBottomColor: palette.border, opacity, transform: [{ translateX }, { translateX: hoverShift }, { scale }] },
       ]}
     >
       <Pressable
         style={styles.row}
         onPress={() => onOpenConversation(chat)}
+        onHoverIn={animateHoverIn}
+        onHoverOut={animateHoverOut}
         onPressIn={() => {
           Animated.spring(scale, { toValue: 0.98, useNativeDriver: true, tension: 280, friction: 16 }).start();
         }}
@@ -61,9 +119,23 @@ function RowItem({ chat, index, total, palette, isArabic, onOpenConversation, do
           Animated.spring(scale, { toValue: 1, useNativeDriver: true, tension: 280, friction: 16 }).start();
         }}
       >
-        <View style={[styles.avatar, { backgroundColor: chat.avatarColor }]}>
-          <Text style={styles.avatarText}>{chat.avatarInitial}</Text>
-        </View>
+        <Animated.View
+          pointerEvents="none"
+          style={[
+            styles.hoverSheen,
+            {
+              backgroundColor: palette.accent,
+              opacity: shimmerOpacity,
+              transform: [{ translateX: shimmerX }],
+            },
+          ]}
+        />
+
+        <Animated.View style={{ transform: [{ scale: avatarScale }, { rotate: avatarRotateDeg }] }}>
+          <View style={[styles.avatar, { backgroundColor: chat.avatarColor }]}>
+            <Text style={styles.avatarText}>{chat.avatarInitial}</Text>
+          </View>
+        </Animated.View>
 
         <View style={styles.mainBlock}>
           <Text style={[styles.name, { color: palette.textPrimary }, isArabic && styles.textRight]} numberOfLines={1}>
@@ -81,11 +153,17 @@ function RowItem({ chat, index, total, palette, isArabic, onOpenConversation, do
               <Animated.View
                 style={[
                   styles.unreadDot,
-                  { backgroundColor: palette.accent, opacity: dotPulse, transform: [{ scale: dotPulse }] },
+                  {
+                    backgroundColor: palette.accent,
+                    opacity: dotPulse,
+                    transform: [{ scale: dotPulse }, { scale: badgeScale }],
+                  },
                 ]}
               />
             )}
-            <Ionicons name="chevron-forward" size={22} color={palette.navIcon} />
+            <Animated.View style={{ transform: [{ translateX: arrowShift }] }}>
+              <Ionicons name="chevron-forward" size={22} color={palette.navIcon} />
+            </Animated.View>
           </View>
         </View>
       </Pressable>
@@ -95,15 +173,23 @@ function RowItem({ chat, index, total, palette, isArabic, onOpenConversation, do
 
 export function ConversationsScreen({ t, palette, isArabic, onOpenConversation }: ConversationsScreenProps) {
   const headerY = useRef(new Animated.Value(-70)).current;
+  const headerOpacity = useRef(new Animated.Value(0)).current;
   const dotPulse = useRef(new Animated.Value(1)).current;
 
   useEffect(() => {
-    Animated.spring(headerY, {
-      toValue: 0,
-      tension: 190,
-      friction: 22,
-      useNativeDriver: true,
-    }).start();
+    Animated.parallel([
+      Animated.spring(headerY, {
+        toValue: 0,
+        tension: 190,
+        friction: 22,
+        useNativeDriver: true,
+      }),
+      Animated.timing(headerOpacity, {
+        toValue: 1,
+        duration: 280,
+        useNativeDriver: true,
+      }),
+    ]).start();
 
     const pulse = Animated.loop(
       Animated.sequence([
@@ -114,14 +200,19 @@ export function ConversationsScreen({ t, palette, isArabic, onOpenConversation }
     pulse.start();
 
     return () => pulse.stop();
-  }, [dotPulse, headerY]);
+  }, [dotPulse, headerOpacity, headerY]);
 
   return (
     <>
       <Animated.View
         style={[
           styles.topBar,
-          { backgroundColor: palette.topBar, borderBottomColor: palette.border, transform: [{ translateY: headerY }] },
+          {
+            backgroundColor: palette.topBar,
+            borderBottomColor: palette.border,
+            opacity: headerOpacity,
+            transform: [{ translateY: headerY }],
+          },
         ]}
       >
         <Text style={[styles.topBarTitle, { color: palette.textPrimary }]}>{t.conversations}</Text>
@@ -167,6 +258,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 14,
+    overflow: 'hidden',
+    position: 'relative',
   },
   rowDivider: {
     borderBottomWidth: 1,
@@ -214,6 +307,13 @@ const styles = StyleSheet.create({
     width: 12,
     height: 12,
     borderRadius: 6,
+  },
+  hoverSheen: {
+    position: 'absolute',
+    top: 0,
+    bottom: 0,
+    width: 120,
+    borderRadius: 24,
   },
   textRight: {
     textAlign: 'right',

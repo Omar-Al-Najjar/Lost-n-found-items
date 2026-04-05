@@ -18,8 +18,11 @@ export function ConversationDetailScreen({ t, palette, isArabic, chat, onBack }:
   const listRef = useRef<ScrollView>(null);
 
   const headerY = useRef(new Animated.Value(-74)).current;
+  const headerOpacity = useRef(new Animated.Value(0)).current;
   const composerY = useRef(new Animated.Value(90)).current;
+  const composerOpacity = useRef(new Animated.Value(0)).current;
   const onlinePulse = useRef(new Animated.Value(1)).current;
+  const sendScale = useRef(new Animated.Value(1)).current;
 
   const rowOpacity = useRef<Animated.Value[]>([]);
   const rowY = useRef<Animated.Value[]>([]);
@@ -33,7 +36,9 @@ export function ConversationDetailScreen({ t, palette, isArabic, chat, onBack }:
   useEffect(() => {
     Animated.parallel([
       Animated.spring(headerY, { toValue: 0, tension: 190, friction: 22, useNativeDriver: true }),
+      Animated.timing(headerOpacity, { toValue: 1, duration: 260, useNativeDriver: true }),
       Animated.spring(composerY, { toValue: 0, tension: 190, friction: 22, useNativeDriver: true }),
+      Animated.timing(composerOpacity, { toValue: 1, duration: 300, useNativeDriver: true }),
     ]).start();
 
     const pulse = Animated.loop(
@@ -45,7 +50,7 @@ export function ConversationDetailScreen({ t, palette, isArabic, chat, onBack }:
     pulse.start();
 
     return () => pulse.stop();
-  }, [composerY, headerY, onlinePulse]);
+  }, [composerOpacity, composerY, headerOpacity, headerY, onlinePulse]);
 
   useEffect(() => {
     const start = previousLength.current === 0 ? 0 : previousLength.current;
@@ -97,6 +102,12 @@ export function ConversationDetailScreen({ t, palette, isArabic, chat, onBack }:
   const handleSend = () => {
     const trimmed = messageText.trim();
     if (!trimmed) return;
+
+    Animated.sequence([
+      Animated.spring(sendScale, { toValue: 0.9, useNativeDriver: true, tension: 350, friction: 18 }),
+      Animated.spring(sendScale, { toValue: 1, useNativeDriver: true, tension: 350, friction: 18 }),
+    ]).start();
+
     setMessages((prev) => [
       ...prev,
       {
@@ -115,7 +126,12 @@ export function ConversationDetailScreen({ t, palette, isArabic, chat, onBack }:
         style={[
           styles.topBar,
           isArabic && styles.rowReverse,
-          { backgroundColor: palette.topBar, borderBottomColor: palette.border, transform: [{ translateY: headerY }] },
+          {
+            backgroundColor: palette.topBar,
+            borderBottomColor: palette.border,
+            opacity: headerOpacity,
+            transform: [{ translateY: headerY }],
+          },
         ]}
       >
         <Pressable style={styles.backButton} onPress={onBack}>
@@ -159,7 +175,17 @@ export function ConversationDetailScreen({ t, palette, isArabic, chat, onBack }:
                 },
               ]}
             >
-              <Text style={[styles.bubbleText, { color: message.mine ? '#000000' : palette.textPrimary }]}>{message.text}</Text>
+              <Text
+                style={[
+                  styles.bubbleText,
+                  {
+                    color: message.mine ? '#000000' : palette.textPrimary,
+                    textAlign: isArabic ? 'right' : 'left',
+                  },
+                ]}
+              >
+                {message.text}
+              </Text>
             </View>
             <Text style={[styles.timeText, { color: palette.textSecondary }]}>{message.time}</Text>
           </Animated.View>
@@ -171,7 +197,12 @@ export function ConversationDetailScreen({ t, palette, isArabic, chat, onBack }:
       <Animated.View
         style={[
           styles.composerWrap,
-          { backgroundColor: palette.bg, borderTopColor: palette.border, transform: [{ translateY: composerY }] },
+          {
+            backgroundColor: palette.bg,
+            borderTopColor: palette.border,
+            opacity: composerOpacity,
+            transform: [{ translateY: composerY }],
+          },
         ]}
       >
         <Pressable style={[styles.roundButton, { backgroundColor: palette.topBar, borderColor: palette.border }]}>
@@ -189,13 +220,15 @@ export function ConversationDetailScreen({ t, palette, isArabic, chat, onBack }:
           />
         </View>
 
-        <Pressable
-          style={[styles.roundButton, { backgroundColor: '#c2de7c', opacity: messageText.trim() ? 1 : 0.55 }]}
-          onPress={handleSend}
-          disabled={!messageText.trim()}
-        >
-          <Ionicons name="paper-plane-outline" size={26} color={palette.textPrimary} />
-        </Pressable>
+        <Animated.View style={{ transform: [{ scale: sendScale }] }}>
+          <Pressable
+            style={[styles.roundButton, { backgroundColor: '#c2de7c', opacity: messageText.trim() ? 1 : 0.55 }]}
+            onPress={handleSend}
+            disabled={!messageText.trim()}
+          >
+            <Ionicons name="paper-plane-outline" size={26} color={palette.textPrimary} />
+          </Pressable>
+        </Animated.View>
       </Animated.View>
     </View>
   );
@@ -267,10 +300,10 @@ const styles = StyleSheet.create({
     maxWidth: '78%',
   },
   messageMine: {
-    alignSelf: 'flex-start',
+    alignSelf: 'flex-end',
   },
   messageOther: {
-    alignSelf: 'flex-end',
+    alignSelf: 'flex-start',
   },
   bubble: {
     borderRadius: 18,
@@ -281,7 +314,6 @@ const styles = StyleSheet.create({
   bubbleText: {
     fontSize: 18,
     lineHeight: 26,
-    textAlign: 'right',
   },
   timeText: {
     marginTop: 6,

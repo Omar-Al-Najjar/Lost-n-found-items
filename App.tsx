@@ -1,5 +1,6 @@
 import React, { useMemo, useState } from 'react';
-import { SafeAreaView, StatusBar, StyleSheet, Text, useColorScheme, View } from 'react-native';
+import { LogBox, StatusBar, StyleSheet, Text, useColorScheme, View } from 'react-native';
+import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 
 import { BottomNav } from './src/components/BottomNav';
 import { getTranslations } from './src/i18n';
@@ -8,6 +9,31 @@ import { ConversationsScreen } from './src/screens/ConversationsScreen';
 import { ProfileScreen } from './src/screens/ProfileScreen';
 import { darkPalette, lightPalette } from './src/theme';
 import { ChatPreview, Language, TabKey, ThemeMode } from './src/types';
+
+if (__DEV__) {
+  LogBox.ignoreLogs(['TurboModule method "showMessage" called with 4 arguments']);
+
+  const globalAny = globalThis as unknown as {
+    __patchedShowMessageConsoleError?: boolean;
+    __originalConsoleError?: typeof console.error;
+  };
+
+  if (!globalAny.__patchedShowMessageConsoleError) {
+    globalAny.__patchedShowMessageConsoleError = true;
+    globalAny.__originalConsoleError = console.error;
+
+    console.error = (...args: unknown[]) => {
+      const first = args[0];
+      const text = typeof first === 'string' ? first : first instanceof Error ? first.message : String(first ?? '');
+
+      if (text.includes('TurboModule method "showMessage" called with 4 arguments')) {
+        return;
+      }
+
+      globalAny.__originalConsoleError?.(...args);
+    };
+  }
+}
 
 export default function App() {
   const systemColorScheme = useColorScheme();
@@ -28,7 +54,7 @@ export default function App() {
       { key: 'home' as const, icon: 'home-outline' as const },
       { key: 'posts' as const, icon: 'briefcase-outline' as const },
       { key: 'create' as const, icon: 'add' as const, isCenter: true },
-      { key: 'chat' as const, icon: 'chatbubble' as const },
+      { key: 'chat' as const, icon: 'chatbubble-outline' as const },
       { key: 'profile' as const, icon: 'person-outline' as const },
     ],
     []
@@ -86,26 +112,28 @@ export default function App() {
   };
 
   return (
-    <SafeAreaView style={[styles.safeArea, { backgroundColor: palette.bg }]}>
-      <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} backgroundColor={palette.bg} />
-      <View style={[styles.screen, { backgroundColor: palette.bg }]}>
-        {renderMainContent()}
+    <SafeAreaProvider>
+      <SafeAreaView style={[styles.safeArea, { backgroundColor: palette.bg }]}>
+        <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} backgroundColor={palette.bg} />
+        <View style={[styles.screen, { backgroundColor: palette.bg }]}>
+          {renderMainContent()}
 
-        {!selectedConversation && (
-          <BottomNav
-            palette={palette}
-            tabs={tabs}
-            activeTab={activeTab}
-            onSelectTab={(tab) => {
-              setActiveTab(tab);
-              if (tab !== 'chat') {
-                setSelectedConversation(null);
-              }
-            }}
-          />
-        )}
-      </View>
-    </SafeAreaView>
+          {!selectedConversation && (
+            <BottomNav
+              palette={palette}
+              tabs={tabs}
+              activeTab={activeTab}
+              onSelectTab={(tab) => {
+                setActiveTab(tab);
+                if (tab !== 'chat') {
+                  setSelectedConversation(null);
+                }
+              }}
+            />
+          )}
+        </View>
+      </SafeAreaView>
+    </SafeAreaProvider>
   );
 }
 

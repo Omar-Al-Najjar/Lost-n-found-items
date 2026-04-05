@@ -1,6 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import React, { useEffect, useRef } from 'react';
-import { Animated, Easing, Pressable, ScrollView, StyleSheet, Switch, Text, View } from 'react-native';
+import { Animated, Easing, Pressable, ScrollView, StyleProp, StyleSheet, Switch, Text, View, ViewStyle } from 'react-native';
 
 import { Language, Palette, ThemeMode } from '../types';
 
@@ -15,6 +15,45 @@ type ProfileScreenProps = {
   setLanguage: (lang: Language) => void;
 };
 
+type InteractiveCardProps = {
+  children: React.ReactNode;
+  style: StyleProp<ViewStyle>;
+  radius?: number;
+};
+
+function InteractiveCard({ children, style, radius = 18 }: InteractiveCardProps) {
+  const scale = useRef(new Animated.Value(1)).current;
+  const lift = useRef(new Animated.Value(0)).current;
+
+  const animateIn = () => {
+    Animated.parallel([
+      Animated.spring(scale, { toValue: 1.02, useNativeDriver: true, tension: 240, friction: 16 }),
+      Animated.spring(lift, { toValue: -2, useNativeDriver: true, tension: 240, friction: 16 }),
+    ]).start();
+  };
+
+  const animateOut = () => {
+    Animated.parallel([
+      Animated.spring(scale, { toValue: 1, useNativeDriver: true, tension: 240, friction: 16 }),
+      Animated.spring(lift, { toValue: 0, useNativeDriver: true, tension: 240, friction: 16 }),
+    ]).start();
+  };
+
+  return (
+    <Animated.View style={{ transform: [{ translateY: lift }, { scale }] }}>
+      <Pressable
+        style={[style, styles.interactivePressable, { borderRadius: radius }]}
+        onHoverIn={animateIn}
+        onHoverOut={animateOut}
+        onPressIn={animateIn}
+        onPressOut={animateOut}
+      >
+        {children}
+      </Pressable>
+    </Animated.View>
+  );
+}
+
 export function ProfileScreen({
   t,
   palette,
@@ -26,6 +65,7 @@ export function ProfileScreen({
   setLanguage,
 }: ProfileScreenProps) {
   const headerY = useRef(new Animated.Value(-70)).current;
+  const headerOpacity = useRef(new Animated.Value(0)).current;
   const profileOpacity = useRef(new Animated.Value(0)).current;
   const profileY = useRef(new Animated.Value(20)).current;
   const avatarScale = useRef(new Animated.Value(0.6)).current;
@@ -43,6 +83,7 @@ export function ProfileScreen({
   const logoutOpacity = useRef(new Animated.Value(0)).current;
   const logoutY = useRef(new Animated.Value(20)).current;
   const countPulse = useRef(new Animated.Value(1)).current;
+  const logoutScale = useRef(new Animated.Value(1)).current;
 
   useEffect(() => {
     Animated.parallel([
@@ -51,6 +92,11 @@ export function ProfileScreen({
         useNativeDriver: true,
         tension: 180,
         friction: 20,
+      }),
+      Animated.timing(headerOpacity, {
+        toValue: 1,
+        duration: 260,
+        useNativeDriver: true,
       }),
       Animated.sequence([
         Animated.delay(80),
@@ -217,8 +263,10 @@ export function ProfileScreen({
     countPulse,
     glowOpacity,
     glowScale,
+    headerOpacity,
     headerY,
     logoutOpacity,
+    logoutScale,
     logoutY,
     postsOpacity,
     postsY,
@@ -242,7 +290,12 @@ export function ProfileScreen({
       <Animated.View
         style={[
           styles.topBar,
-          { backgroundColor: palette.topBar, borderBottomColor: palette.border, transform: [{ translateY: headerY }] },
+          {
+            backgroundColor: palette.topBar,
+            borderBottomColor: palette.border,
+            opacity: headerOpacity,
+            transform: [{ translateY: headerY }],
+          },
         ]}
       >
         <Text style={[styles.topBarTitle, { color: palette.textPrimary }]}>{t.profile}</Text>
@@ -293,12 +346,12 @@ export function ProfileScreen({
               transform: [{ translateX: statLeftX }],
             }}
           >
-            <View style={[styles.statCard, { backgroundColor: palette.card, borderColor: palette.border }]}>
+            <InteractiveCard style={[styles.statCard, { backgroundColor: palette.card, borderColor: palette.border }]} radius={22}>
               <Animated.Text style={[styles.statValue, { color: palette.accent, transform: [{ scale: countPulse }] }]}>
                 3
               </Animated.Text>
               <Text style={[styles.statLabel, { color: palette.textSecondary }]}>{t.activeChats}</Text>
-            </View>
+            </InteractiveCard>
           </Animated.View>
 
           <Animated.View
@@ -308,12 +361,12 @@ export function ProfileScreen({
               transform: [{ translateX: statRightX }],
             }}
           >
-            <View style={[styles.statCard, { backgroundColor: palette.card, borderColor: palette.border }]}>
+            <InteractiveCard style={[styles.statCard, { backgroundColor: palette.card, borderColor: palette.border }]} radius={22}>
               <Animated.Text style={[styles.statValue, { color: palette.accent, transform: [{ scale: countPulse }] }]}>
                 2
               </Animated.Text>
               <Text style={[styles.statLabel, { color: palette.textSecondary }]}>{t.myPosts}</Text>
-            </View>
+            </InteractiveCard>
           </Animated.View>
         </View>
 
@@ -325,7 +378,7 @@ export function ProfileScreen({
             </View>
           </View>
 
-          <View style={[styles.settingCard, { backgroundColor: palette.card, borderColor: palette.border }]}>
+          <InteractiveCard style={[styles.settingCard, { backgroundColor: palette.card, borderColor: palette.border }]} radius={18}>
             <View style={[styles.settingRow, isArabic && styles.rowReverse]}>
               <View style={[styles.settingLabelWrap, isArabic && styles.rowReverse]}>
                 <Ionicons name="sunny-outline" size={24} color={palette.textPrimary} />
@@ -341,9 +394,9 @@ export function ProfileScreen({
                 thumbColor={palette.card}
               />
             </View>
-          </View>
+          </InteractiveCard>
 
-          <View style={[styles.settingCard, { backgroundColor: palette.card, borderColor: palette.border }]}>
+          <InteractiveCard style={[styles.settingCard, { backgroundColor: palette.card, borderColor: palette.border }]} radius={18}>
             <View style={[styles.settingRow, isArabic && styles.rowReverse]}>
               <View style={[styles.settingLabelWrap, isArabic && styles.rowReverse]}>
                 <Ionicons name="globe-outline" size={24} color={palette.textPrimary} />
@@ -366,7 +419,7 @@ export function ProfileScreen({
                 })}
               </View>
             </View>
-          </View>
+          </InteractiveCard>
         </Animated.View>
 
         <Animated.View
@@ -380,7 +433,7 @@ export function ProfileScreen({
             <Text style={[styles.postsTitle, { color: palette.textPrimary }]}>{t.myPosts}</Text>
           </View>
 
-          <View style={[styles.postCard, { backgroundColor: palette.card, borderColor: palette.border }]}>
+          <InteractiveCard style={[styles.postCard, { backgroundColor: palette.card, borderColor: palette.border }]} radius={20}>
             <View style={[styles.postTopRow, isArabic && styles.rowReverse]}>
               <View style={styles.badgeLost}>
                 <Text style={styles.badgeLostText}>{t.lost}</Text>
@@ -388,9 +441,9 @@ export function ProfileScreen({
               <Text style={[styles.postTime, { color: palette.textSecondary }]}>{t.ago2d}</Text>
             </View>
             <Text style={[styles.postTitle, { color: palette.textPrimary }]}>{t.wallet}</Text>
-          </View>
+          </InteractiveCard>
 
-          <View style={[styles.postCard, { backgroundColor: palette.card, borderColor: palette.border }]}>
+          <InteractiveCard style={[styles.postCard, { backgroundColor: palette.card, borderColor: palette.border }]} radius={20}>
             <View style={[styles.postTopRow, isArabic && styles.rowReverse]}>
               <View style={styles.badgeFound}>
                 <Text style={styles.badgeFoundText}>{t.found}</Text>
@@ -398,14 +451,30 @@ export function ProfileScreen({
               <Text style={[styles.postTime, { color: palette.textSecondary }]}>{t.ago1w}</Text>
             </View>
             <Text style={[styles.postTitle, { color: palette.textPrimary }]}>{t.keys}</Text>
-          </View>
+          </InteractiveCard>
         </Animated.View>
 
         <Animated.View style={{ width: '92%', opacity: logoutOpacity, transform: [{ translateY: logoutY }] }}>
-          <Pressable style={styles.logoutButton}>
-            <Ionicons name="log-out-outline" size={22} color="#e11d48" />
-            <Text style={styles.logoutText}>{t.logout}</Text>
-          </Pressable>
+          <Animated.View style={{ transform: [{ scale: logoutScale }] }}>
+            <Pressable
+              style={styles.logoutButton}
+              onHoverIn={() => {
+                Animated.spring(logoutScale, { toValue: 1.02, useNativeDriver: true, tension: 280, friction: 18 }).start();
+              }}
+              onHoverOut={() => {
+                Animated.spring(logoutScale, { toValue: 1, useNativeDriver: true, tension: 280, friction: 18 }).start();
+              }}
+              onPressIn={() => {
+                Animated.spring(logoutScale, { toValue: 0.97, useNativeDriver: true, tension: 320, friction: 18 }).start();
+              }}
+              onPressOut={() => {
+                Animated.spring(logoutScale, { toValue: 1, useNativeDriver: true, tension: 320, friction: 18 }).start();
+              }}
+            >
+              <Ionicons name="log-out-outline" size={22} color="#e11d48" />
+              <Text style={styles.logoutText}>{t.logout}</Text>
+            </Pressable>
+          </Animated.View>
         </Animated.View>
 
         <View style={{ height: 140 }} />
@@ -435,6 +504,10 @@ const styles = StyleSheet.create({
   },
   rightAligned: {
     alignItems: 'flex-end',
+  },
+  interactivePressable: {
+    width: '100%',
+    overflow: 'hidden',
   },
   card: {
     width: '92%',
