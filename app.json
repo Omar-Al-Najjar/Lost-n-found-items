@@ -1,0 +1,13 @@
+{
+  "expo": {
+    "name": "Lost and Found",
+    "slug": "lost-and-found-app",
+    "scheme": "lostandfoundapp",
+    "android": {
+      "package": "com.anonymous.lostandfoundapp"
+    },
+    "plugins": [
+      "expo-font"
+    ]
+  }
+}

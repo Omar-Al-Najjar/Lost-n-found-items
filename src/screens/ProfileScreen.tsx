@@ -1,11 +1,15 @@
 import { Ionicons } from '@expo/vector-icons';
 import React, { useEffect, useRef } from 'react';
-import { Animated, Easing, Pressable, ScrollView, StyleProp, StyleSheet, Switch, Text, View, ViewStyle } from 'react-native';
+import { Animated, Easing, Pressable, ScrollView, StyleSheet, Switch, Text, View } from 'react-native';
 
+import { AmbientBackground } from '../components/AmbientBackground';
+import { AccountCopy } from '../constants/accountCopy';
+import { darkPalette } from '../theme';
 import { Language, Palette, ThemeMode } from '../types';
 
 type ProfileScreenProps = {
   t: any;
+  copy: AccountCopy;
   palette: Palette;
   isArabic: boolean;
   darkEnabled: boolean;
@@ -13,49 +17,17 @@ type ProfileScreenProps = {
   setThemeMode: (mode: ThemeMode) => void;
   language: Language;
   setLanguage: (lang: Language) => void;
+  activeChatsCount: number;
+  myReportsCount: number;
+  unreadNotificationsCount: number;
+  onOpenNotifications: () => void;
+  onOpenMyReports: () => void;
+  onLogout: () => void;
 };
-
-type InteractiveCardProps = {
-  children: React.ReactNode;
-  style: StyleProp<ViewStyle>;
-  radius?: number;
-};
-
-function InteractiveCard({ children, style, radius = 18 }: InteractiveCardProps) {
-  const scale = useRef(new Animated.Value(1)).current;
-  const lift = useRef(new Animated.Value(0)).current;
-
-  const animateIn = () => {
-    Animated.parallel([
-      Animated.spring(scale, { toValue: 1.02, useNativeDriver: true, tension: 240, friction: 16 }),
-      Animated.spring(lift, { toValue: -2, useNativeDriver: true, tension: 240, friction: 16 }),
-    ]).start();
-  };
-
-  const animateOut = () => {
-    Animated.parallel([
-      Animated.spring(scale, { toValue: 1, useNativeDriver: true, tension: 240, friction: 16 }),
-      Animated.spring(lift, { toValue: 0, useNativeDriver: true, tension: 240, friction: 16 }),
-    ]).start();
-  };
-
-  return (
-    <Animated.View style={{ transform: [{ translateY: lift }, { scale }] }}>
-      <Pressable
-        style={[style, styles.interactivePressable, { borderRadius: radius }]}
-        onHoverIn={animateIn}
-        onHoverOut={animateOut}
-        onPressIn={animateIn}
-        onPressOut={animateOut}
-      >
-        {children}
-      </Pressable>
-    </Animated.View>
-  );
-}
 
 export function ProfileScreen({
   t,
+  copy,
   palette,
   isArabic,
   darkEnabled,
@@ -63,9 +35,28 @@ export function ProfileScreen({
   setThemeMode,
   language,
   setLanguage,
+  activeChatsCount,
+  myReportsCount,
+  unreadNotificationsCount,
+  onOpenNotifications,
+  onOpenMyReports,
+  onLogout,
 }: ProfileScreenProps) {
+  const isDark = palette.bg === darkPalette.bg;
+  const accentInk = isDark ? palette.bg : '#102247';
+  const heroBackground = isDark ? palette.surfaceAlt : palette.textPrimary;
+  const heroBorderColor = isDark ? palette.border : 'transparent';
+  const heroEyebrowColor = palette.accent;
+  const heroTitleColor = isDark ? palette.textPrimary : '#ffffff';
+  const heroSubtitleColor = isDark ? palette.textSecondary : '#dfe8c9';
+  const languageSwitcherBackground = isDark ? palette.surfaceAlt : palette.cardMuted;
+  const shortcutIconBackground = isDark ? palette.surfaceAlt : palette.cardMuted;
+  const reportsPillBackground = isDark ? palette.surfaceAlt : palette.textPrimary;
+  const reportsPillTextColor = isDark ? palette.textPrimary : palette.accentStrong;
+  const shortcutLinkColor = isDark ? palette.accent : palette.accentSoft;
+  const logoutBackground = isDark ? palette.dangerSoft : '#f2dbdb';
+  const logoutBorderColor = isDark ? palette.border : '#e8b9be';
   const headerY = useRef(new Animated.Value(-70)).current;
-  const headerOpacity = useRef(new Animated.Value(0)).current;
   const profileOpacity = useRef(new Animated.Value(0)).current;
   const profileY = useRef(new Animated.Value(20)).current;
   const avatarScale = useRef(new Animated.Value(0.6)).current;
@@ -83,7 +74,6 @@ export function ProfileScreen({
   const logoutOpacity = useRef(new Animated.Value(0)).current;
   const logoutY = useRef(new Animated.Value(20)).current;
   const countPulse = useRef(new Animated.Value(1)).current;
-  const logoutScale = useRef(new Animated.Value(1)).current;
 
   useEffect(() => {
     Animated.parallel([
@@ -92,11 +82,6 @@ export function ProfileScreen({
         useNativeDriver: true,
         tension: 180,
         friction: 20,
-      }),
-      Animated.timing(headerOpacity, {
-        toValue: 1,
-        duration: 260,
-        useNativeDriver: true,
       }),
       Animated.sequence([
         Animated.delay(80),
@@ -263,10 +248,8 @@ export function ProfileScreen({
     countPulse,
     glowOpacity,
     glowScale,
-    headerOpacity,
     headerY,
     logoutOpacity,
-    logoutScale,
     logoutY,
     postsOpacity,
     postsY,
@@ -287,21 +270,36 @@ export function ProfileScreen({
 
   return (
     <>
+      <AmbientBackground primary={palette.accent} secondary={palette.accentSoft} tertiary={palette.danger} />
+
       <Animated.View
         style={[
           styles.topBar,
-          {
-            backgroundColor: palette.topBar,
-            borderBottomColor: palette.border,
-            opacity: headerOpacity,
-            transform: [{ translateY: headerY }],
-          },
+          { backgroundColor: palette.topBar, borderBottomColor: palette.border, transform: [{ translateY: headerY }] },
         ]}
       >
         <Text style={[styles.topBarTitle, { color: palette.textPrimary }]}>{t.profile}</Text>
       </Animated.View>
 
       <ScrollView contentContainerStyle={styles.contentContainer} showsVerticalScrollIndicator={false}>
+        <Animated.View
+          style={[
+            styles.heroBanner,
+            {
+              width: '92%',
+              backgroundColor: heroBackground,
+              borderColor: heroBorderColor,
+              borderWidth: isDark ? 1 : 0,
+              opacity: profileOpacity,
+              transform: [{ translateY: profileY }],
+            },
+          ]}
+        >
+          <Text style={[styles.heroEyebrow, { color: heroEyebrowColor }]}>{t.profile}</Text>
+          <Text style={[styles.heroTitle, { color: heroTitleColor }]}>{t.fullName}</Text>
+          <Text style={[styles.heroSubtitle, { color: heroSubtitleColor }]}>{copy.shortcutsTitle}</Text>
+        </Animated.View>
+
         <Animated.View
           style={[
             styles.card,
@@ -333,7 +331,7 @@ export function ProfileScreen({
 
             <View style={styles.centerTextWrap}>
               <Text style={[styles.profileName, { color: palette.textPrimary }]}>{t.fullName}</Text>
-              <Text style={[styles.profileMeta, { color: palette.textSecondary }]}>{t.email}</Text>
+              <Text style={[styles.profileMeta, { color: palette.textSecondary }]}>{t.emailValue}</Text>
             </View>
           </View>
         </Animated.View>
@@ -346,12 +344,12 @@ export function ProfileScreen({
               transform: [{ translateX: statLeftX }],
             }}
           >
-            <InteractiveCard style={[styles.statCard, { backgroundColor: palette.card, borderColor: palette.border }]} radius={22}>
+            <View style={[styles.statCard, { backgroundColor: palette.card, borderColor: palette.border }]}>
               <Animated.Text style={[styles.statValue, { color: palette.accent, transform: [{ scale: countPulse }] }]}>
-                3
+                {activeChatsCount}
               </Animated.Text>
               <Text style={[styles.statLabel, { color: palette.textSecondary }]}>{t.activeChats}</Text>
-            </InteractiveCard>
+            </View>
           </Animated.View>
 
           <Animated.View
@@ -361,12 +359,12 @@ export function ProfileScreen({
               transform: [{ translateX: statRightX }],
             }}
           >
-            <InteractiveCard style={[styles.statCard, { backgroundColor: palette.card, borderColor: palette.border }]} radius={22}>
+            <View style={[styles.statCard, { backgroundColor: palette.card, borderColor: palette.border }]}>
               <Animated.Text style={[styles.statValue, { color: palette.accent, transform: [{ scale: countPulse }] }]}>
-                2
+                {myReportsCount}
               </Animated.Text>
-              <Text style={[styles.statLabel, { color: palette.textSecondary }]}>{t.myPosts}</Text>
-            </InteractiveCard>
+              <Text style={[styles.statLabel, { color: palette.textSecondary }]}>{copy.myReportsTitle}</Text>
+            </View>
           </Animated.View>
         </View>
 
@@ -378,7 +376,7 @@ export function ProfileScreen({
             </View>
           </View>
 
-          <InteractiveCard style={[styles.settingCard, { backgroundColor: palette.card, borderColor: palette.border }]} radius={18}>
+          <View style={[styles.settingCard, { backgroundColor: palette.card, borderColor: palette.border }]}>
             <View style={[styles.settingRow, isArabic && styles.rowReverse]}>
               <View style={[styles.settingLabelWrap, isArabic && styles.rowReverse]}>
                 <Ionicons name="sunny-outline" size={24} color={palette.textPrimary} />
@@ -391,18 +389,18 @@ export function ProfileScreen({
                   setThemeMode(value ? 'dark' : 'light');
                 }}
                 trackColor={{ false: palette.toggleTrack, true: palette.accent }}
-                thumbColor={palette.card}
+                thumbColor={darkEnabled ? palette.topBar : palette.card}
               />
             </View>
-          </InteractiveCard>
+          </View>
 
-          <InteractiveCard style={[styles.settingCard, { backgroundColor: palette.card, borderColor: palette.border }]} radius={18}>
+          <View style={[styles.settingCard, { backgroundColor: palette.card, borderColor: palette.border }]}>
             <View style={[styles.settingRow, isArabic && styles.rowReverse]}>
               <View style={[styles.settingLabelWrap, isArabic && styles.rowReverse]}>
                 <Ionicons name="globe-outline" size={24} color={palette.textPrimary} />
                 <Text style={[styles.settingText, { color: palette.textPrimary }]}>{t.language}</Text>
               </View>
-              <View style={[styles.langSwitchWrap, { backgroundColor: palette.cardMuted }]}>
+              <View style={[styles.langSwitchWrap, { backgroundColor: languageSwitcherBackground }]}>
                 {(['ar', 'en'] as Language[]).map((lng) => {
                   const active = lng === language;
                   return (
@@ -411,7 +409,7 @@ export function ProfileScreen({
                       onPress={() => setLanguage(lng)}
                       style={[styles.langButton, { backgroundColor: active ? palette.accent : 'transparent' }]}
                     >
-                      <Text style={[styles.langText, { color: active ? '#102247' : palette.textSecondary }]}>
+                      <Text style={[styles.langText, { color: active ? accentInk : palette.textSecondary }]}>
                         {lng === 'en' ? 'English' : '\u0627\u0644\u0639\u0631\u0628\u064a\u0629'}
                       </Text>
                     </Pressable>
@@ -419,7 +417,7 @@ export function ProfileScreen({
                 })}
               </View>
             </View>
-          </InteractiveCard>
+          </View>
         </Animated.View>
 
         <Animated.View
@@ -430,51 +428,80 @@ export function ProfileScreen({
           }}
         >
           <View style={[styles.postsHeader, isArabic && styles.rightAligned]}>
-            <Text style={[styles.postsTitle, { color: palette.textPrimary }]}>{t.myPosts}</Text>
+            <Text style={[styles.postsTitle, { color: palette.textPrimary }]}>{copy.shortcutsTitle}</Text>
           </View>
 
-          <InteractiveCard style={[styles.postCard, { backgroundColor: palette.card, borderColor: palette.border }]} radius={20}>
-            <View style={[styles.postTopRow, isArabic && styles.rowReverse]}>
-              <View style={styles.badgeLost}>
-                <Text style={styles.badgeLostText}>{t.lost}</Text>
+          <Pressable
+            style={[styles.shortcutCard, { backgroundColor: palette.card, borderColor: palette.border }]}
+            onPress={onOpenNotifications}
+          >
+            <View style={[styles.shortcutTopRow, isArabic && styles.rowReverse]}>
+              <View style={[styles.shortcutIconWrap, { backgroundColor: shortcutIconBackground }]}>
+                <Ionicons name="notifications-outline" size={22} color={palette.textPrimary} />
               </View>
-              <Text style={[styles.postTime, { color: palette.textSecondary }]}>{t.ago2d}</Text>
+              <View style={[styles.shortcutCountPill, { backgroundColor: palette.accent }]}>
+                <Text style={[styles.shortcutCountText, { color: accentInk }]}>
+                  {unreadNotificationsCount} {copy.unreadCountLabel}
+                </Text>
+              </View>
             </View>
-            <Text style={[styles.postTitle, { color: palette.textPrimary }]}>{t.wallet}</Text>
-          </InteractiveCard>
+            <Text style={[styles.postTitle, { color: palette.textPrimary }, isArabic && styles.textRight]}>
+              {copy.notificationsShortcutTitle}
+            </Text>
+            <Text style={[styles.postDescription, { color: palette.textSecondary }, isArabic && styles.textRight]}>
+              {copy.notificationsShortcutDescription}
+            </Text>
+            <View style={[styles.shortcutFooter, isArabic && styles.rowReverse]}>
+              <Text style={[styles.shortcutMeta, { color: palette.textSecondary }]}>
+                {unreadNotificationsCount} {copy.unreadCountLabel}
+              </Text>
+              <Text style={[styles.shortcutLink, { color: shortcutLinkColor }]}>{copy.openShortcut}</Text>
+            </View>
+          </Pressable>
 
-          <InteractiveCard style={[styles.postCard, { backgroundColor: palette.card, borderColor: palette.border }]} radius={20}>
-            <View style={[styles.postTopRow, isArabic && styles.rowReverse]}>
-              <View style={styles.badgeFound}>
-                <Text style={styles.badgeFoundText}>{t.found}</Text>
+          <Pressable
+            style={[styles.shortcutCard, { backgroundColor: palette.card, borderColor: palette.border }]}
+            onPress={onOpenMyReports}
+          >
+            <View style={[styles.shortcutTopRow, isArabic && styles.rowReverse]}>
+              <View style={[styles.shortcutIconWrap, { backgroundColor: shortcutIconBackground }]}>
+                <Ionicons name="folder-open-outline" size={22} color={palette.textPrimary} />
               </View>
-              <Text style={[styles.postTime, { color: palette.textSecondary }]}>{t.ago1w}</Text>
+              <View style={[styles.shortcutCountPill, { backgroundColor: reportsPillBackground }]}>
+                <Text style={[styles.shortcutCountText, { color: reportsPillTextColor }]}>
+                  {myReportsCount} {copy.reportsCountLabel}
+                </Text>
+              </View>
             </View>
-            <Text style={[styles.postTitle, { color: palette.textPrimary }]}>{t.keys}</Text>
-          </InteractiveCard>
+            <Text style={[styles.postTitle, { color: palette.textPrimary }, isArabic && styles.textRight]}>
+              {copy.myReportsShortcutTitle}
+            </Text>
+            <Text style={[styles.postDescription, { color: palette.textSecondary }, isArabic && styles.textRight]}>
+              {copy.myReportsShortcutDescription}
+            </Text>
+            <View style={[styles.shortcutFooter, isArabic && styles.rowReverse]}>
+              <Text style={[styles.shortcutMeta, { color: palette.textSecondary }]}>
+                {myReportsCount} {copy.reportsCountLabel}
+              </Text>
+              <Text style={[styles.shortcutLink, { color: shortcutLinkColor }]}>{copy.openShortcut}</Text>
+            </View>
+          </Pressable>
         </Animated.View>
 
         <Animated.View style={{ width: '92%', opacity: logoutOpacity, transform: [{ translateY: logoutY }] }}>
-          <Animated.View style={{ transform: [{ scale: logoutScale }] }}>
-            <Pressable
-              style={styles.logoutButton}
-              onHoverIn={() => {
-                Animated.spring(logoutScale, { toValue: 1.02, useNativeDriver: true, tension: 280, friction: 18 }).start();
-              }}
-              onHoverOut={() => {
-                Animated.spring(logoutScale, { toValue: 1, useNativeDriver: true, tension: 280, friction: 18 }).start();
-              }}
-              onPressIn={() => {
-                Animated.spring(logoutScale, { toValue: 0.97, useNativeDriver: true, tension: 320, friction: 18 }).start();
-              }}
-              onPressOut={() => {
-                Animated.spring(logoutScale, { toValue: 1, useNativeDriver: true, tension: 320, friction: 18 }).start();
-              }}
-            >
-              <Ionicons name="log-out-outline" size={22} color="#e11d48" />
-              <Text style={styles.logoutText}>{t.logout}</Text>
-            </Pressable>
-          </Animated.View>
+          <Pressable
+            style={[
+              styles.logoutButton,
+              {
+                backgroundColor: logoutBackground,
+                borderColor: logoutBorderColor,
+              },
+            ]}
+            onPress={onLogout}
+          >
+            <Ionicons name="log-out-outline" size={22} color="#e11d48" />
+            <Text style={styles.logoutText}>{t.logout}</Text>
+          </Pressable>
         </Animated.View>
 
         <View style={{ height: 140 }} />
@@ -488,7 +515,8 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    height: 62,
+    minHeight: 72,
+    paddingVertical: 12,
   },
   topBarTitle: {
     fontSize: 23,
@@ -505,9 +533,8 @@ const styles = StyleSheet.create({
   rightAligned: {
     alignItems: 'flex-end',
   },
-  interactivePressable: {
-    width: '100%',
-    overflow: 'hidden',
+  textRight: {
+    textAlign: 'right',
   },
   card: {
     width: '92%',
@@ -522,6 +549,27 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.12,
     shadowRadius: 6,
     elevation: 3,
+  },
+  heroBanner: {
+    borderRadius: 24,
+    paddingHorizontal: 18,
+    paddingVertical: 16,
+    marginBottom: 12,
+  },
+  heroEyebrow: {
+    fontSize: 11,
+    fontWeight: '800',
+    letterSpacing: 0.5,
+    textTransform: 'uppercase',
+  },
+  heroTitle: {
+    fontSize: 24,
+    fontWeight: '800',
+    marginTop: 6,
+  },
+  heroSubtitle: {
+    fontSize: 13,
+    marginTop: 4,
   },
   profileGlow: {
     position: 'absolute',
@@ -666,6 +714,40 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
   },
+  shortcutCard: {
+    width: '100%',
+    borderWidth: 1,
+    borderRadius: 20,
+    padding: 14,
+    marginBottom: 10,
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 5,
+    elevation: 2,
+  },
+  shortcutTopRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  shortcutIconWrap: {
+    width: 42,
+    height: 42,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  shortcutCountPill: {
+    borderRadius: 999,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+  },
+  shortcutCountText: {
+    fontSize: 11,
+    fontWeight: '800',
+  },
   badgeLost: {
     borderRadius: 999,
     paddingHorizontal: 12,
@@ -692,9 +774,26 @@ const styles = StyleSheet.create({
     fontSize: 10,
   },
   postTitle: {
-    marginTop: 12,
     fontSize: 19,
-    fontWeight: '500',
+    fontWeight: '700',
+  },
+  postDescription: {
+    marginTop: 8,
+    fontSize: 14,
+    lineHeight: 21,
+  },
+  shortcutFooter: {
+    marginTop: 12,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  shortcutMeta: {
+    fontSize: 12,
+  },
+  shortcutLink: {
+    fontSize: 13,
+    fontWeight: '800',
   },
   logoutButton: {
     width: '100%',
@@ -706,8 +805,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
-    backgroundColor: '#f2dbdb',
-    borderColor: '#e8b9be',
   },
   logoutText: {
     color: '#e11d48',

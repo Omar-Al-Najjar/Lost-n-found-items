@@ -2,6 +2,7 @@ import { Ionicons } from '@expo/vector-icons';
 import React, { useEffect, useRef, useState } from 'react';
 import { Animated, Easing, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 
+import { AmbientBackground } from '../components/AmbientBackground';
 import { ChatMessage, ChatPreview, Palette } from '../types';
 
 type ConversationDetailScreenProps = {
@@ -18,11 +19,8 @@ export function ConversationDetailScreen({ t, palette, isArabic, chat, onBack }:
   const listRef = useRef<ScrollView>(null);
 
   const headerY = useRef(new Animated.Value(-74)).current;
-  const headerOpacity = useRef(new Animated.Value(0)).current;
   const composerY = useRef(new Animated.Value(90)).current;
-  const composerOpacity = useRef(new Animated.Value(0)).current;
   const onlinePulse = useRef(new Animated.Value(1)).current;
-  const sendScale = useRef(new Animated.Value(1)).current;
 
   const rowOpacity = useRef<Animated.Value[]>([]);
   const rowY = useRef<Animated.Value[]>([]);
@@ -36,9 +34,7 @@ export function ConversationDetailScreen({ t, palette, isArabic, chat, onBack }:
   useEffect(() => {
     Animated.parallel([
       Animated.spring(headerY, { toValue: 0, tension: 190, friction: 22, useNativeDriver: true }),
-      Animated.timing(headerOpacity, { toValue: 1, duration: 260, useNativeDriver: true }),
       Animated.spring(composerY, { toValue: 0, tension: 190, friction: 22, useNativeDriver: true }),
-      Animated.timing(composerOpacity, { toValue: 1, duration: 300, useNativeDriver: true }),
     ]).start();
 
     const pulse = Animated.loop(
@@ -50,7 +46,7 @@ export function ConversationDetailScreen({ t, palette, isArabic, chat, onBack }:
     pulse.start();
 
     return () => pulse.stop();
-  }, [composerOpacity, composerY, headerOpacity, headerY, onlinePulse]);
+  }, [composerY, headerY, onlinePulse]);
 
   useEffect(() => {
     const start = previousLength.current === 0 ? 0 : previousLength.current;
@@ -102,12 +98,6 @@ export function ConversationDetailScreen({ t, palette, isArabic, chat, onBack }:
   const handleSend = () => {
     const trimmed = messageText.trim();
     if (!trimmed) return;
-
-    Animated.sequence([
-      Animated.spring(sendScale, { toValue: 0.9, useNativeDriver: true, tension: 350, friction: 18 }),
-      Animated.spring(sendScale, { toValue: 1, useNativeDriver: true, tension: 350, friction: 18 }),
-    ]).start();
-
     setMessages((prev) => [
       ...prev,
       {
@@ -122,16 +112,13 @@ export function ConversationDetailScreen({ t, palette, isArabic, chat, onBack }:
 
   return (
     <View style={[styles.screen, { backgroundColor: palette.bg }]}>
+      <AmbientBackground primary={palette.accent} secondary={palette.accentSoft} tertiary={chat.avatarColor} />
+
       <Animated.View
         style={[
           styles.topBar,
           isArabic && styles.rowReverse,
-          {
-            backgroundColor: palette.topBar,
-            borderBottomColor: palette.border,
-            opacity: headerOpacity,
-            transform: [{ translateY: headerY }],
-          },
+          { backgroundColor: palette.topBar, borderBottomColor: palette.border, transform: [{ translateY: headerY }] },
         ]}
       >
         <Pressable style={styles.backButton} onPress={onBack}>
@@ -175,17 +162,7 @@ export function ConversationDetailScreen({ t, palette, isArabic, chat, onBack }:
                 },
               ]}
             >
-              <Text
-                style={[
-                  styles.bubbleText,
-                  {
-                    color: message.mine ? '#000000' : palette.textPrimary,
-                    textAlign: isArabic ? 'right' : 'left',
-                  },
-                ]}
-              >
-                {message.text}
-              </Text>
+              <Text style={[styles.bubbleText, { color: message.mine ? '#000000' : palette.textPrimary }]}>{message.text}</Text>
             </View>
             <Text style={[styles.timeText, { color: palette.textSecondary }]}>{message.time}</Text>
           </Animated.View>
@@ -197,12 +174,7 @@ export function ConversationDetailScreen({ t, palette, isArabic, chat, onBack }:
       <Animated.View
         style={[
           styles.composerWrap,
-          {
-            backgroundColor: palette.bg,
-            borderTopColor: palette.border,
-            opacity: composerOpacity,
-            transform: [{ translateY: composerY }],
-          },
+          { backgroundColor: palette.bg, borderTopColor: palette.border, transform: [{ translateY: composerY }] },
         ]}
       >
         <Pressable style={[styles.roundButton, { backgroundColor: palette.topBar, borderColor: palette.border }]}>
@@ -220,15 +192,13 @@ export function ConversationDetailScreen({ t, palette, isArabic, chat, onBack }:
           />
         </View>
 
-        <Animated.View style={{ transform: [{ scale: sendScale }] }}>
-          <Pressable
-            style={[styles.roundButton, { backgroundColor: '#c2de7c', opacity: messageText.trim() ? 1 : 0.55 }]}
-            onPress={handleSend}
-            disabled={!messageText.trim()}
-          >
-            <Ionicons name="paper-plane-outline" size={26} color={palette.textPrimary} />
-          </Pressable>
-        </Animated.View>
+        <Pressable
+          style={[styles.roundButton, { backgroundColor: '#c2de7c', opacity: messageText.trim() ? 1 : 0.55 }]}
+          onPress={handleSend}
+          disabled={!messageText.trim()}
+        >
+          <Ionicons name="paper-plane-outline" size={26} color={palette.textPrimary} />
+        </Pressable>
       </Animated.View>
     </View>
   );
@@ -239,11 +209,12 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   topBar: {
-    height: 74,
+    minHeight: 80,
     borderBottomWidth: 1,
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 14,
+    paddingVertical: 12,
     gap: 10,
   },
   rowReverse: {
@@ -300,20 +271,26 @@ const styles = StyleSheet.create({
     maxWidth: '78%',
   },
   messageMine: {
-    alignSelf: 'flex-end',
+    alignSelf: 'flex-start',
   },
   messageOther: {
-    alignSelf: 'flex-start',
+    alignSelf: 'flex-end',
   },
   bubble: {
     borderRadius: 18,
     borderWidth: 1,
     paddingHorizontal: 16,
     paddingVertical: 12,
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.08,
+    shadowRadius: 18,
+    elevation: 4,
   },
   bubbleText: {
     fontSize: 18,
     lineHeight: 26,
+    textAlign: 'right',
   },
   timeText: {
     marginTop: 6,
@@ -334,6 +311,11 @@ const styles = StyleSheet.create({
     paddingBottom: 14,
     borderTopWidth: 1,
     gap: 8,
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: -4 },
+    shadowOpacity: 0.06,
+    shadowRadius: 12,
+    elevation: 4,
   },
   roundButton: {
     width: 50,
