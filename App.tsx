@@ -1,7 +1,7 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { LogBox, StatusBar, StyleSheet, Text, useColorScheme, View } from 'react-native';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
-
+import { supabase } from './src/supabase'
 import { BottomNav } from './src/components/BottomNav';
 import { getTranslations } from './src/i18n';
 import { ConversationDetailScreen } from './src/screens/ConversationDetailScreen';
@@ -9,7 +9,6 @@ import { ConversationsScreen } from './src/screens/ConversationsScreen';
 import { ProfileScreen } from './src/screens/ProfileScreen';
 import { darkPalette, lightPalette } from './src/theme';
 import { ChatPreview, Language, TabKey, ThemeMode } from './src/types';
-
 if (__DEV__) {
   LogBox.ignoreLogs(['TurboModule method "showMessage" called with 4 arguments']);
 
@@ -57,8 +56,18 @@ export default function App() {
       { key: 'chat' as const, icon: 'chatbubble-outline' as const },
       { key: 'profile' as const, icon: 'person-outline' as const },
     ],
-    []
-  );
+    [])
+useEffect(() => {
+  const fetchData = async () => {
+    const { data, error } = await supabase.from('categories').select('*')
+    console.log('CATEGORIES DATA:', data)
+    console.log('CATEGORIES ERROR:', error)
+  }
+
+  fetchData()
+}, [])
+
+
 
   const renderMainContent = () => {
     if (activeTab === 'chat') {
