@@ -1,3 +1,6 @@
+import * as FileSystem from 'expo-file-system/legacy';
+import { toByteArray } from 'base64-js';
+
 import { ChatMessage, ChatPreview, Language, MyReportItem, NotificationItem, SelectedImage, AiFoundAnalysis, FeedPost } from '../types';
 import { HomeFeedItem } from '../data/homeFeed';
 import { supabase } from '../supabase';
@@ -197,13 +200,24 @@ function createSafeFileName(image: SelectedImage, postId: string) {
   return `${baseName || `post-${postId}`}.${extension}`;
 }
 
+function createDraftFileName(image: SelectedImage) {
+  const originalName = image.fileName?.trim();
+  const extensionFromMime = image.mimeType?.split('/')[1]?.toLowerCase();
+  const extensionFromName = originalName?.includes('.') ? originalName.split('.').pop()?.toLowerCase() : null;
+  const extension = extensionFromName || extensionFromMime || 'jpg';
+  const baseName = originalName
+    ? originalName.replace(/\.[^/.]+$/, '').replace(/[^a-zA-Z0-9-_]/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '')
+    : 'draft-image';
+
+  return `${baseName || 'draft-image'}-${generateUuid()}.${extension}`;
+}
+
 async function uploadPostImage(postId: string, userId: string, image: SelectedImage) {
   const fileName = createSafeFileName(image, postId);
   const storagePath = `${userId}/${postId}/${fileName}`;
-  const response = await fetch(image.uri);
-  const arrayBuffer = await response.arrayBuffer();
+  const arrayBuffer = await readImageArrayBuffer(image.uri);
 
-  const uploadResult = await supabase.storage.from('post-images').upload(storagePath, arrayBuffer, {
+  const uploadResult = await supabase.storage.from('post-images').upload(storagePath, new Uint8Array(arrayBuffer), {
     contentType: image.mimeType ?? 'image/jpeg',
     upsert: false,
   });
@@ -246,14 +260,13 @@ async function attachExistingPostImage(postId: string, userId: string, storagePa
 }
 
 export async function uploadDraftPostImage(userId: string, image: SelectedImage) {
-  const fileName = createSafeFileName(image, `draft-${generateUuid()}`);
+  const fileName = createDraftFileName(image);
   const storagePath = `${userId}/drafts/${fileName}`;
-  const response = await fetch(image.uri);
-  const arrayBuffer = await response.arrayBuffer();
+  const arrayBuffer = await readImageArrayBuffer(image.uri);
 
-  const uploadResult = await supabase.storage.from('post-images').upload(storagePath, arrayBuffer, {
+  const uploadResult = await supabase.storage.from('post-images').upload(storagePath, new Uint8Array(arrayBuffer), {
     contentType: image.mimeType ?? 'image/jpeg',
-    upsert: true,
+    upsert: false,
   });
 
   assertNoError(uploadResult.error);
@@ -269,6 +282,14 @@ export async function uploadDraftPostImage(userId: string, image: SelectedImage)
     storagePath,
     signedUrl: signedUrlResult.data.signedUrl,
   };
+}
+
+async function readImageArrayBuffer(uri: string) {
+  const base64 = await FileSystem.readAsStringAsync(uri, {
+    encoding: FileSystem.EncodingType.Base64,
+  });
+  const bytes = toByteArray(base64);
+  return bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength);
 }
 
 async function buildSignedImageUrlMap(paths: Array<string | null | undefined>) {

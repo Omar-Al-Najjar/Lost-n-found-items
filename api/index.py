@@ -177,9 +177,14 @@ def analyze_found_item(
     payload: FoundAnalyzeRequest,
     authorization: str | None = Header(default=None),
 ) -> dict[str, Any]:
-    token = extract_bearer_token(authorization)
-    verify_user_token(token)
-    pipeline = get_pipeline()
+    try:
+        token = extract_bearer_token(authorization)
+        verify_user_token(token)
+        pipeline = get_pipeline()
+    except HTTPException:
+        raise
+    except Exception as error:
+        raise HTTPException(status_code=500, detail=f"API setup failed: {error}") from error
 
     try:
         image = download_image(payload.draftImageSignedUrl)
@@ -208,13 +213,19 @@ def search_lost_item(
     payload: LostSearchRequest,
     authorization: str | None = Header(default=None),
 ) -> dict[str, Any]:
-    token = extract_bearer_token(authorization)
-    user = verify_user_token(token)
-    user_id = str(user.get("id") or "")
-    if not user_id:
-        raise HTTPException(status_code=401, detail="Supabase user id missing from token.")
+    try:
+        token = extract_bearer_token(authorization)
+        user = verify_user_token(token)
+        user_id = str(user.get("id") or "")
+        if not user_id:
+            raise HTTPException(status_code=401, detail="Supabase user id missing from token.")
 
-    pipeline = get_pipeline()
+        pipeline = get_pipeline()
+    except HTTPException:
+        raise
+    except Exception as error:
+        raise HTTPException(status_code=500, detail=f"API setup failed: {error}") from error
+
     try:
         result = pipeline.run_lost_item_search(
             lost_user_id=user_id,

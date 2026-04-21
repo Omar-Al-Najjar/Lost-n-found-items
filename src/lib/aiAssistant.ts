@@ -36,13 +36,25 @@ async function callAiApi<T>(path: string, payload: Record<string, unknown>): Pro
   });
 
   const responseText = await response.text();
-  const parsedBody = responseText ? (JSON.parse(responseText) as T & { detail?: string }) : null;
+  let parsedBody: (T & { detail?: string }) | null = null;
 
-  if (!response.ok) {
-    throw new Error(parsedBody?.detail || 'AI request failed.');
+  if (responseText) {
+    try {
+      parsedBody = JSON.parse(responseText) as T & { detail?: string };
+    } catch {
+      parsedBody = null;
+    }
   }
 
-  return (parsedBody ?? {}) as T;
+  if (!response.ok) {
+    throw new Error(parsedBody?.detail || responseText || 'AI request failed.');
+  }
+
+  if (!parsedBody) {
+    throw new Error(responseText || 'AI API returned an invalid response.');
+  }
+
+  return parsedBody as T;
 }
 
 export function isAiAssistantConfigured() {
