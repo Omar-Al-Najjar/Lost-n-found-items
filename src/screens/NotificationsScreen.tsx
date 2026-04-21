@@ -1,10 +1,11 @@
 import { Ionicons } from '@expo/vector-icons';
 import React, { useMemo, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Animated, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { AmbientBackground } from '../components/AmbientBackground';
 import { AccountCopy } from '../constants/accountCopy';
+import { useProfilePageMotion } from '../hooks/useProfilePageMotion';
 import { NotificationItem, Palette } from '../types';
 
 type NotificationsScreenProps = {
@@ -27,6 +28,7 @@ export function NotificationsScreen({
   onOpenReport,
 }: NotificationsScreenProps) {
   const [filter, setFilter] = useState<'all' | 'unread' | 'match' | 'status'>('all');
+  const { headerAnimatedStyle, getItemAnimatedStyle } = useProfilePageMotion();
 
   const unreadCount = notifications.filter((item) => item.unread).length;
 
@@ -54,7 +56,9 @@ export function NotificationsScreen({
     <SafeAreaView edges={['top']} style={styles.screen}>
       <AmbientBackground primary={palette.accent} secondary={palette.accentSoft} tertiary={palette.danger} />
 
-      <View style={[styles.topBar, { backgroundColor: palette.topBar, borderBottomColor: palette.border }]}>
+      <Animated.View
+        style={[styles.topBar, { backgroundColor: palette.topBar, borderBottomColor: palette.border }, headerAnimatedStyle]}
+      >
         <View style={[styles.topBarRow, isArabic && styles.rowReverse]}>
           <Pressable style={styles.backButton} onPress={onBack}>
             <Ionicons name={isArabic ? 'chevron-forward' : 'chevron-back'} size={24} color={palette.textPrimary} />
@@ -68,9 +72,13 @@ export function NotificationsScreen({
             </Text>
           </View>
         </View>
-      </View>
+      </Animated.View>
 
-      <ScrollView contentContainerStyle={styles.contentContainer} showsVerticalScrollIndicator={false}>
+      <Animated.ScrollView
+        style={getItemAnimatedStyle(0)}
+        contentContainerStyle={styles.contentContainer}
+        showsVerticalScrollIndicator={false}
+      >
         <View style={[styles.summaryCard, { backgroundColor: palette.card, borderColor: palette.border }]}>
           <View style={styles.summaryBlock}>
             <Text style={[styles.summaryValue, { color: palette.textPrimary }]}>{notifications.length}</Text>
@@ -185,7 +193,7 @@ export function NotificationsScreen({
         )}
 
         <View style={{ height: 140 }} />
-      </ScrollView>
+      </Animated.ScrollView>
     </SafeAreaView>
   );
 }

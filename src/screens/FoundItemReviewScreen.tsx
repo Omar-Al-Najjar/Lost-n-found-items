@@ -1,10 +1,11 @@
 import { Ionicons } from '@expo/vector-icons';
 import React, { useState } from 'react';
-import { Image, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Animated, Image, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { AmbientBackground } from '../components/AmbientBackground';
 import { CreatePostCopy } from '../constants/createPostCopy';
+import { useProfilePageMotion } from '../hooks/useProfilePageMotion';
 import { AiFoundAnalysisDraft, FeedPost, Palette } from '../types';
 
 type FoundItemReviewScreenProps = {
@@ -24,6 +25,7 @@ export function FoundItemReviewScreen({
   onBack,
   onPublish,
 }: FoundItemReviewScreenProps) {
+  const { headerAnimatedStyle, getItemAnimatedStyle } = useProfilePageMotion();
   const [title, setTitle] = useState(draft.analysis.title);
   const [summary, setSummary] = useState(draft.analysis.summary);
   const [brand, setBrand] = useState(draft.analysis.brand === 'Unknown' ? '' : draft.analysis.brand);
@@ -62,7 +64,9 @@ export function FoundItemReviewScreen({
     <SafeAreaView edges={['top']} style={styles.screen}>
       <AmbientBackground primary={palette.accent} secondary={palette.accentSoft} tertiary={palette.danger} />
 
-      <View style={[styles.topBar, { backgroundColor: palette.topBar, borderBottomColor: palette.border }]}>
+      <Animated.View
+        style={[styles.topBar, { backgroundColor: palette.topBar, borderBottomColor: palette.border }, headerAnimatedStyle]}
+      >
         <View style={[styles.topBarRow, isArabic && styles.rowReverse]}>
           <Pressable style={styles.backButton} onPress={onBack}>
             <Ionicons name={isArabic ? 'chevron-forward' : 'chevron-back'} size={24} color={palette.textPrimary} />
@@ -74,9 +78,13 @@ export function FoundItemReviewScreen({
             </Text>
           </View>
         </View>
-      </View>
+      </Animated.View>
 
-      <ScrollView contentContainerStyle={styles.contentContainer} showsVerticalScrollIndicator={false}>
+      <Animated.ScrollView
+        style={getItemAnimatedStyle(0)}
+        contentContainerStyle={styles.contentContainer}
+        showsVerticalScrollIndicator={false}
+      >
         <View style={[styles.previewCard, { backgroundColor: palette.card, borderColor: palette.border }]}>
           <Image source={{ uri: draft.image.uri }} style={styles.previewImage} resizeMode="cover" />
           <View style={[styles.hintPill, { backgroundColor: palette.surfaceAlt }]}>
@@ -156,7 +164,7 @@ export function FoundItemReviewScreen({
         </Pressable>
 
         <View style={{ height: 120 }} />
-      </ScrollView>
+      </Animated.ScrollView>
     </SafeAreaView>
   );
 }

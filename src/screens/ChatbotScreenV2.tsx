@@ -1,11 +1,12 @@
 import { Ionicons } from '@expo/vector-icons';
 import React from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Animated, Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { AmbientBackground } from '../components/AmbientBackground';
 import { HomeCopy } from '../constants/homeCopy';
 import { HomeFeedItem } from '../data/homeFeed';
+import { useProfilePageMotion } from '../hooks/useProfilePageMotion';
 import { AiMatchCandidate, AiSearchRun, Palette } from '../types';
 
 type ChatbotScreenProps = {
@@ -31,11 +32,15 @@ export function ChatbotScreen({
   onOpenSearch,
   onOpenMatch,
 }: ChatbotScreenProps) {
+  const { headerAnimatedStyle, getItemAnimatedStyle } = useProfilePageMotion();
+
   return (
     <SafeAreaView edges={['top']} style={styles.screen}>
       <AmbientBackground primary={palette.accent} secondary={palette.accentSoft} tertiary={palette.textPrimary} />
 
-      <View style={[styles.topBar, { backgroundColor: palette.topBar, borderBottomColor: palette.border }]}>
+      <Animated.View
+        style={[styles.topBar, { backgroundColor: palette.topBar, borderBottomColor: palette.border }, headerAnimatedStyle]}
+      >
         <View style={[styles.headerRow, isArabic && styles.rowReverse]}>
           <View style={styles.headerCopy}>
             <Text style={[styles.topBarTitle, { color: palette.textPrimary }, isArabic && styles.textRight]}>{copy.aiHubTitle}</Text>
@@ -47,9 +52,13 @@ export function ChatbotScreen({
             <Ionicons name="sparkles-outline" size={20} color={palette.textPrimary} />
           </View>
         </View>
-      </View>
+      </Animated.View>
 
-      <ScrollView contentContainerStyle={styles.contentContainer} showsVerticalScrollIndicator={false}>
+      <Animated.ScrollView
+        style={getItemAnimatedStyle(0)}
+        contentContainerStyle={styles.contentContainer}
+        showsVerticalScrollIndicator={false}
+      >
         <View style={[styles.heroCard, { backgroundColor: palette.card, borderColor: palette.border }]}>
           <View style={[styles.actionRow, isArabic && styles.rowReverse]}>
             <Pressable style={[styles.actionButton, { backgroundColor: palette.accent }]} onPress={onOpenFoundFlow}>
@@ -85,10 +94,14 @@ export function ChatbotScreen({
           <View style={styles.section}>
             <Text style={[styles.sectionTitle, { color: palette.textPrimary }, isArabic && styles.textRight]}>{copy.aiHubRecentSearches}</Text>
             {recentSearches.slice(0, 4).map((search) => (
-              <Pressable key={search.id} style={[styles.searchCard, { backgroundColor: palette.card, borderColor: palette.border }]} onPress={onOpenSearch}>
+              <Pressable
+                key={search.id}
+                style={[styles.searchCard, { backgroundColor: palette.card, borderColor: palette.border }]}
+                onPress={onOpenSearch}
+              >
                 <Text style={[styles.searchQuery, { color: palette.textPrimary }, isArabic && styles.textRight]}>{search.query}</Text>
                 <Text style={[styles.searchMeta, { color: palette.textSecondary }, isArabic && styles.textRight]}>
-                  {search.matches.length} · {search.createdAtLabel}
+                  {search.matches.length} | {search.createdAtLabel}
                 </Text>
               </Pressable>
             ))}
@@ -99,12 +112,14 @@ export function ChatbotScreen({
           <View style={[styles.emptyCard, { backgroundColor: palette.card, borderColor: palette.border }]}>
             <Ionicons name="sparkles-outline" size={26} color={palette.textSecondary} />
             <Text style={[styles.emptyTitle, { color: palette.textPrimary }, isArabic && styles.textRight]}>{copy.aiHubTitle}</Text>
-            <Text style={[styles.emptyText, { color: palette.textSecondary }, isArabic && styles.textRight]}>{copy.aiHubEmpty}</Text>
+            <Text style={[styles.emptyText, { color: palette.textSecondary }, isArabic && styles.textRight]}>
+              {aiConfigured ? copy.aiHubEmpty : copy.aiSearchEmpty}
+            </Text>
           </View>
         ) : null}
 
         <View style={{ height: 140 }} />
-      </ScrollView>
+      </Animated.ScrollView>
     </SafeAreaView>
   );
 }

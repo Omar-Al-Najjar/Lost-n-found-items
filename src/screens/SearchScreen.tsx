@@ -1,11 +1,12 @@
 import { Ionicons } from '@expo/vector-icons';
 import React, { useMemo, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Animated, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { AmbientBackground } from '../components/AmbientBackground';
 import { HomeCopy } from '../constants/homeCopy';
 import { HomeFeedItem } from '../data/homeFeed';
+import { useProfilePageMotion } from '../hooks/useProfilePageMotion';
 import { AiSearchRun, Palette } from '../types';
 
 function getReadableChipTextColor(backgroundHex: string) {
@@ -52,6 +53,7 @@ export function SearchScreen({
   const [filter, setFilter] = useState<'all' | 'lost' | 'found'>('all');
   const [category, setCategory] = useState<'all' | HomeFeedItem['category']>('all');
   const [isRunningAiSearch, setIsRunningAiSearch] = useState(false);
+  const { headerAnimatedStyle, getItemAnimatedStyle } = useProfilePageMotion();
   const activeCategoryTextColor = getReadableChipTextColor(palette.textPrimary);
 
   const isAssistantMode = mode === 'assistant';
@@ -94,7 +96,9 @@ export function SearchScreen({
     <SafeAreaView edges={['top']} style={styles.screen}>
       <AmbientBackground primary={palette.accent} secondary={palette.accentSoft} tertiary={palette.danger} />
 
-      <View style={[styles.topBar, { backgroundColor: palette.topBar, borderBottomColor: palette.border }]}>
+      <Animated.View
+        style={[styles.topBar, { backgroundColor: palette.topBar, borderBottomColor: palette.border }, headerAnimatedStyle]}
+      >
         <View style={[styles.topBarRow, isArabic && styles.rowReverse]}>
           <Pressable style={styles.backButton} onPress={onBack}>
             <Ionicons name={isArabic ? 'chevron-forward' : 'chevron-back'} size={24} color={palette.textPrimary} />
@@ -108,9 +112,13 @@ export function SearchScreen({
             </Text>
           </View>
         </View>
-      </View>
+      </Animated.View>
 
-      <ScrollView contentContainerStyle={styles.contentContainer} showsVerticalScrollIndicator={false}>
+      <Animated.ScrollView
+        style={getItemAnimatedStyle(0)}
+        contentContainerStyle={styles.contentContainer}
+        showsVerticalScrollIndicator={false}
+      >
         <View
           style={[
             styles.searchWrap,
@@ -403,7 +411,7 @@ export function SearchScreen({
           : null}
 
         <View style={{ height: 140 }} />
-      </ScrollView>
+      </Animated.ScrollView>
     </SafeAreaView>
   );
 }

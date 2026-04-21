@@ -1,11 +1,12 @@
 import { Ionicons } from '@expo/vector-icons';
 import React from 'react';
-import { Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Animated, Image, Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { AmbientBackground } from '../components/AmbientBackground';
 import { HomeCopy } from '../constants/homeCopy';
 import { HomeFeedItem } from '../data/homeFeed';
+import { useProfilePageMotion } from '../hooks/useProfilePageMotion';
 import { Palette } from '../types';
 
 type ItemDetailsScreenProps = {
@@ -27,6 +28,7 @@ export function ItemDetailsScreen({
   onBack,
   onOpenChat,
 }: ItemDetailsScreenProps) {
+  const { headerAnimatedStyle, getItemAnimatedStyle } = useProfilePageMotion();
   const isLost = item.type === 'lost';
   const isOwnPost = Boolean(currentUserId && item.userId === currentUserId);
 
@@ -49,7 +51,9 @@ export function ItemDetailsScreen({
     <SafeAreaView edges={['top']} style={styles.screen}>
       <AmbientBackground primary={palette.accent} secondary={palette.accentSoft} tertiary={palette.danger} />
 
-      <View style={[styles.topBar, { backgroundColor: palette.topBar, borderBottomColor: palette.border }]}>
+      <Animated.View
+        style={[styles.topBar, { backgroundColor: palette.topBar, borderBottomColor: palette.border }, headerAnimatedStyle]}
+      >
         <View style={[styles.topBarRow, isArabic && styles.rowReverse]}>
           <Pressable style={styles.backButton} onPress={onBack}>
             <Ionicons name={isArabic ? 'chevron-forward' : 'chevron-back'} size={24} color={palette.textPrimary} />
@@ -58,9 +62,13 @@ export function ItemDetailsScreen({
             {copy.detailsTitle}
           </Text>
         </View>
-      </View>
+      </Animated.View>
 
-      <ScrollView contentContainerStyle={styles.contentContainer} showsVerticalScrollIndicator={false}>
+      <Animated.ScrollView
+        style={getItemAnimatedStyle(0)}
+        contentContainerStyle={styles.contentContainer}
+        showsVerticalScrollIndicator={false}
+      >
         {item.image ? (
           <Image source={{ uri: item.image }} style={styles.heroPhoto} resizeMode="cover" />
         ) : isLost ? (
@@ -117,7 +125,7 @@ export function ItemDetailsScreen({
         </View>
 
         <View style={{ height: 140 }} />
-      </ScrollView>
+      </Animated.ScrollView>
     </SafeAreaView>
   );
 }

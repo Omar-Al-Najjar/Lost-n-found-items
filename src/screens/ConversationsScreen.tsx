@@ -1,10 +1,11 @@
 import { Ionicons } from '@expo/vector-icons';
 import React, { useMemo, useState } from 'react';
-import { Alert, Keyboard, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Alert, Animated, Keyboard, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { AmbientBackground } from '../components/AmbientBackground';
 import { ConversationsCopy } from '../constants/conversationsCopy';
+import { useProfilePageMotion } from '../hooks/useProfilePageMotion';
 import { ChatPreview, Palette } from '../types';
 
 function getReadableChipTextColor(backgroundHex: string) {
@@ -37,6 +38,7 @@ export function ConversationsScreen({
 }: ConversationsScreenProps) {
   const [query, setQuery] = useState('');
   const [filter, setFilter] = useState<'all' | 'unread'>('all');
+  const { headerAnimatedStyle, getItemAnimatedStyle } = useProfilePageMotion();
   const activeFilterTextColor = getReadableChipTextColor(palette.textPrimary);
 
   const filteredChats = useMemo(() => {
@@ -67,14 +69,17 @@ export function ConversationsScreen({
     <SafeAreaView edges={['top']} style={styles.screen}>
       <AmbientBackground primary={palette.accent} secondary={palette.accentSoft} tertiary={palette.danger} />
 
-      <View style={[styles.topBar, { backgroundColor: palette.topBar, borderBottomColor: palette.border }]}>
+      <Animated.View
+        style={[styles.topBar, { backgroundColor: palette.topBar, borderBottomColor: palette.border }, headerAnimatedStyle]}
+      >
         <Text style={[styles.topBarTitle, { color: palette.textPrimary }, isArabic && styles.textRight]}>{copy.title}</Text>
         <Text style={[styles.topBarSubtitle, { color: palette.textSecondary }, isArabic && styles.textRight]}>
           {copy.subtitle}
         </Text>
-      </View>
+      </Animated.View>
 
-      <ScrollView
+      <Animated.ScrollView
+        style={getItemAnimatedStyle(0)}
         contentContainerStyle={styles.contentContainer}
         showsVerticalScrollIndicator={false}
         keyboardDismissMode="on-drag"
@@ -192,7 +197,7 @@ export function ConversationsScreen({
         )}
 
         <View style={{ height: 140 }} />
-      </ScrollView>
+      </Animated.ScrollView>
     </SafeAreaView>
   );
 }

@@ -3,6 +3,7 @@ import * as ImagePicker from 'expo-image-picker';
 import React, { useMemo, useState } from 'react';
 import {
   Alert,
+  Animated,
   Image,
   KeyboardAvoidingView,
   Platform,
@@ -17,6 +18,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { AuthCopy } from '../constants/authCopy';
 import { AmbientBackground } from './AmbientBackground';
+import { useProfilePageMotion } from '../hooks/useProfilePageMotion';
 import { AuthCredentials, Palette, SelectedImage } from '../types';
 
 type AuthMode = 'login' | 'signup';
@@ -49,6 +51,7 @@ export function AuthFormScreen({
   const [avatarImage, setAvatarImage] = useState<SelectedImage | null>(null);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const { getItemAnimatedStyle } = useProfilePageMotion({ maxItems: 6, headerOffset: -36 });
 
   const canSubmit = useMemo(() => {
     if (!email.trim() || !password.trim()) return false;
@@ -110,18 +113,21 @@ export function AuthFormScreen({
       <AmbientBackground primary={palette.accent} secondary={palette.accentSoft} tertiary={palette.dangerSoft} />
 
       <KeyboardAvoidingView style={styles.keyboardWrap} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-        <Pressable
-          style={[styles.themeButton, { backgroundColor: palette.card, borderColor: palette.border }]}
-          onPress={onToggleTheme}
-        >
-          <Ionicons name={isDark ? 'sunny-outline' : 'moon-outline'} size={20} color={palette.textPrimary} />
-        </Pressable>
+        <Animated.View style={getItemAnimatedStyle(0)}>
+          <Pressable
+            style={[styles.themeButton, { backgroundColor: palette.card, borderColor: palette.border }]}
+            onPress={onToggleTheme}
+          >
+            <Ionicons name={isDark ? 'sunny-outline' : 'moon-outline'} size={20} color={palette.textPrimary} />
+          </Pressable>
+        </Animated.View>
 
-        <ScrollView
-          showsVerticalScrollIndicator={false}
-          contentContainerStyle={styles.scrollContent}
-          keyboardShouldPersistTaps="handled"
-        >
+        <Animated.View style={getItemAnimatedStyle(1)}>
+          <ScrollView
+            showsVerticalScrollIndicator={false}
+            contentContainerStyle={styles.scrollContent}
+            keyboardShouldPersistTaps="handled"
+          >
           <View style={styles.logoBlock}>
             <View style={[styles.eyebrowPill, { backgroundColor: palette.cardMuted }]}>
               <Ionicons
@@ -261,7 +267,8 @@ export function AuthFormScreen({
               </Pressable>
             </View>
           </View>
-        </ScrollView>
+          </ScrollView>
+        </Animated.View>
       </KeyboardAvoidingView>
     </SafeAreaView>
   );

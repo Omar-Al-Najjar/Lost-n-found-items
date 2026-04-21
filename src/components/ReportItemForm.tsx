@@ -1,11 +1,12 @@
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import React, { useMemo, useState } from 'react';
-import { Alert, Image, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Alert, Animated, Image, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { AmbientBackground } from './AmbientBackground';
 import { CreatePostCopy } from '../constants/createPostCopy';
+import { useProfilePageMotion } from '../hooks/useProfilePageMotion';
 import { FeedPost, Palette, SelectedImage } from '../types';
 
 type ReportItemFormProps = {
@@ -36,6 +37,7 @@ export function ReportItemForm({
   const [location, setLocation] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<FeedPost['category']>('electronics');
   const [selectedImage, setSelectedImage] = useState<SelectedImage | null>(null);
+  const { headerAnimatedStyle, getItemAnimatedStyle } = useProfilePageMotion();
 
   const isLost = variant === 'lost';
   const accentColor = isLost ? palette.danger : palette.accent;
@@ -117,7 +119,9 @@ export function ReportItemForm({
     <SafeAreaView edges={['top']} style={styles.screen}>
       <AmbientBackground primary={accentColor} secondary={accentSoft} tertiary={palette.accent} />
 
-      <View style={[styles.topBar, { backgroundColor: palette.topBar, borderBottomColor: palette.border }]}>
+      <Animated.View
+        style={[styles.topBar, { backgroundColor: palette.topBar, borderBottomColor: palette.border }, headerAnimatedStyle]}
+      >
         <View style={[styles.topBarRow, isArabic && styles.rowReverse]}>
           <Pressable style={styles.backButton} onPress={onBack}>
             <Ionicons name={isArabic ? 'chevron-forward' : 'chevron-back'} size={24} color={palette.textPrimary} />
@@ -132,9 +136,13 @@ export function ReportItemForm({
             </Text>
           </View>
         </View>
-      </View>
+      </Animated.View>
 
-      <ScrollView contentContainerStyle={styles.contentContainer} showsVerticalScrollIndicator={false}>
+      <Animated.ScrollView
+        style={getItemAnimatedStyle(0)}
+        contentContainerStyle={styles.contentContainer}
+        showsVerticalScrollIndicator={false}
+      >
         <View style={[styles.card, { backgroundColor: palette.card, borderColor: palette.border }]}>
           <Text style={[styles.sectionTitle, { color: palette.textPrimary }, isArabic && styles.textRight]}>
             {copy.titleField}
@@ -257,7 +265,7 @@ export function ReportItemForm({
         </Pressable>
 
         <View style={{ height: 120 }} />
-      </ScrollView>
+      </Animated.ScrollView>
     </SafeAreaView>
   );
 }

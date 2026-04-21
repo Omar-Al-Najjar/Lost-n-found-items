@@ -1,10 +1,11 @@
 import { Ionicons } from '@expo/vector-icons';
 import React from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Animated, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { AmbientBackground } from '../components/AmbientBackground';
 import { CreatePostCopy } from '../constants/createPostCopy';
+import { useProfilePageMotion } from '../hooks/useProfilePageMotion';
 import { Palette } from '../types';
 
 type AddPostScreenProps = {
@@ -16,64 +17,76 @@ type AddPostScreenProps = {
 };
 
 export function AddPostScreen({ copy, palette, isArabic, onOpenLost, onOpenFound }: AddPostScreenProps) {
+  const { headerAnimatedStyle, getItemAnimatedStyle } = useProfilePageMotion();
+
   return (
     <SafeAreaView edges={['top']} style={styles.screen}>
       <AmbientBackground primary={palette.accent} secondary={palette.accentSoft} tertiary={palette.danger} />
 
-      <View style={[styles.topBar, { backgroundColor: palette.topBar, borderBottomColor: palette.border }]}>
+      <Animated.View
+        style={[styles.topBar, { backgroundColor: palette.topBar, borderBottomColor: palette.border }, headerAnimatedStyle]}
+      >
         <Text style={[styles.topBarTitle, { color: palette.textPrimary }, isArabic && styles.textRight]}>{copy.title}</Text>
         <Text style={[styles.topBarSubtitle, { color: palette.textSecondary }, isArabic && styles.textRight]}>
           {copy.subtitle}
         </Text>
-      </View>
+      </Animated.View>
 
       <ScrollView contentContainerStyle={styles.contentContainer} showsVerticalScrollIndicator={false}>
-        <View style={[styles.heroCard, { backgroundColor: palette.card, borderColor: palette.border }]}>
-          <View style={[styles.heroHeader, isArabic && styles.rowReverse]}>
-            <View style={[styles.heroIconWrap, { backgroundColor: palette.cardMuted }]}>
-              <Ionicons name="add-circle-outline" size={24} color={palette.textPrimary} />
+        <Animated.View style={getItemAnimatedStyle(0)}>
+          <View style={[styles.heroCard, { backgroundColor: palette.card, borderColor: palette.border }]}>
+            <View style={[styles.heroHeader, isArabic && styles.rowReverse]}>
+              <View style={[styles.heroIconWrap, { backgroundColor: palette.cardMuted }]}>
+                <Ionicons name="add-circle-outline" size={24} color={palette.textPrimary} />
+              </View>
+              <View style={styles.heroCopy}>
+                <Text style={[styles.heroTitle, { color: palette.textPrimary }, isArabic && styles.textRight]}>
+                  {copy.chooseTypeTitle}
+                </Text>
+                <Text style={[styles.heroText, { color: palette.textSecondary }, isArabic && styles.textRight]}>
+                  {copy.chooseTypeSubtitle}
+                </Text>
+              </View>
             </View>
-            <View style={styles.heroCopy}>
-              <Text style={[styles.heroTitle, { color: palette.textPrimary }, isArabic && styles.textRight]}>
-                {copy.chooseTypeTitle}
-              </Text>
-              <Text style={[styles.heroText, { color: palette.textSecondary }, isArabic && styles.textRight]}>
-                {copy.chooseTypeSubtitle}
+          </View>
+        </Animated.View>
+
+        <Animated.View style={getItemAnimatedStyle(1)}>
+          <Pressable style={[styles.routeCard, { backgroundColor: '#FDE7E9', borderColor: '#D95C63' }]} onPress={onOpenLost}>
+            <View style={[styles.routeIcon, { backgroundColor: '#D95C63' }]}>
+              <Ionicons name="image-outline" size={20} color="#ffffff" />
+            </View>
+            <View style={styles.routeCopy}>
+              <Text style={[styles.routeTitle, { color: '#1D2433' }, isArabic && styles.textRight]}>{copy.lostTitle}</Text>
+              <Text style={[styles.routeText, { color: '#495066' }, isArabic && styles.textRight]}>
+                {copy.lostRouteDescription}
               </Text>
             </View>
-          </View>
-        </View>
+            <Ionicons name={isArabic ? 'chevron-back' : 'chevron-forward'} size={20} color="#D95C63" />
+          </Pressable>
+        </Animated.View>
 
-        <Pressable style={[styles.routeCard, { backgroundColor: '#FDE7E9', borderColor: '#D95C63' }]} onPress={onOpenLost}>
-          <View style={[styles.routeIcon, { backgroundColor: '#D95C63' }]}>
-            <Ionicons name="image-outline" size={20} color="#ffffff" />
-          </View>
-          <View style={styles.routeCopy}>
-            <Text style={[styles.routeTitle, { color: '#1D2433' }, isArabic && styles.textRight]}>{copy.lostTitle}</Text>
-            <Text style={[styles.routeText, { color: '#495066' }, isArabic && styles.textRight]}>
-              {copy.lostRouteDescription}
-            </Text>
-          </View>
-          <Ionicons name={isArabic ? 'chevron-back' : 'chevron-forward'} size={20} color="#D95C63" />
-        </Pressable>
+        <Animated.View style={getItemAnimatedStyle(2)}>
+          <Pressable style={[styles.routeCard, { backgroundColor: '#E9F6DE', borderColor: '#6FAE3C' }]} onPress={onOpenFound}>
+            <View style={[styles.routeIcon, { backgroundColor: '#6FAE3C' }]}>
+              <Ionicons name="document-text-outline" size={20} color="#ffffff" />
+            </View>
+            <View style={styles.routeCopy}>
+              <Text style={[styles.routeTitle, { color: '#1D2433' }, isArabic && styles.textRight]}>{copy.foundTitle}</Text>
+              <Text style={[styles.routeText, { color: '#495066' }, isArabic && styles.textRight]}>
+                {copy.foundRouteDescription}
+              </Text>
+            </View>
+            <Ionicons name={isArabic ? 'chevron-back' : 'chevron-forward'} size={20} color="#6FAE3C" />
+          </Pressable>
+        </Animated.View>
 
-        <Pressable style={[styles.routeCard, { backgroundColor: '#E9F6DE', borderColor: '#6FAE3C' }]} onPress={onOpenFound}>
-          <View style={[styles.routeIcon, { backgroundColor: '#6FAE3C' }]}>
-            <Ionicons name="document-text-outline" size={20} color="#ffffff" />
+        <Animated.View style={getItemAnimatedStyle(3)}>
+          <View style={[styles.hintCard, { backgroundColor: palette.card, borderColor: palette.border }]}>
+            <Ionicons name="sparkles-outline" size={20} color={palette.accent} />
+            <Text style={[styles.hintText, { color: palette.textPrimary }, isArabic && styles.textRight]}>{copy.aiHint}</Text>
           </View>
-          <View style={styles.routeCopy}>
-            <Text style={[styles.routeTitle, { color: '#1D2433' }, isArabic && styles.textRight]}>{copy.foundTitle}</Text>
-            <Text style={[styles.routeText, { color: '#495066' }, isArabic && styles.textRight]}>
-              {copy.foundRouteDescription}
-            </Text>
-          </View>
-          <Ionicons name={isArabic ? 'chevron-back' : 'chevron-forward'} size={20} color="#6FAE3C" />
-        </Pressable>
-
-        <View style={[styles.hintCard, { backgroundColor: palette.card, borderColor: palette.border }]}>
-          <Ionicons name="sparkles-outline" size={20} color={palette.accent} />
-          <Text style={[styles.hintText, { color: palette.textPrimary }, isArabic && styles.textRight]}>{copy.aiHint}</Text>
-        </View>
+        </Animated.View>
 
         <View style={{ height: 130 }} />
       </ScrollView>

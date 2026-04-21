@@ -1,11 +1,12 @@
 import { Ionicons } from '@expo/vector-icons';
 import React, { useMemo, useState } from 'react';
-import { Image, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Animated, Image, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { AmbientBackground } from '../components/AmbientBackground';
 import { HomeCopy } from '../constants/homeCopy';
 import { HomeFeedItem } from '../data/homeFeed';
+import { useProfilePageMotion } from '../hooks/useProfilePageMotion';
 import { Palette } from '../types';
 
 function getReadableChipTextColor(backgroundHex: string) {
@@ -41,6 +42,7 @@ export function HomeFeedScreen({
   const [filter, setFilter] = useState<'all' | 'lost' | 'found'>('all');
   const [category, setCategory] = useState<'all' | HomeFeedItem['category']>('all');
   const [query, setQuery] = useState('');
+  const { headerAnimatedStyle, getItemAnimatedStyle } = useProfilePageMotion();
   const activeCategoryTextColor = getReadableChipTextColor(palette.textPrimary);
 
   const filteredPosts = useMemo(() => {
@@ -57,7 +59,9 @@ export function HomeFeedScreen({
     <SafeAreaView edges={['top']} style={styles.screen}>
       <AmbientBackground primary={palette.accent} secondary={palette.accentSoft} tertiary={palette.danger} />
 
-      <View style={[styles.topBar, { backgroundColor: palette.topBar, borderBottomColor: palette.border }]}>
+      <Animated.View
+        style={[styles.topBar, { backgroundColor: palette.topBar, borderBottomColor: palette.border }, headerAnimatedStyle]}
+      >
         <View style={[styles.topBarRow, isArabic && styles.rowReverse]}>
           <View style={styles.topBarTextWrap}>
             <Text style={[styles.topBarTitle, { color: palette.textPrimary }, isArabic && styles.textRight]}>{copy.appName}</Text>
@@ -71,9 +75,13 @@ export function HomeFeedScreen({
             <Ionicons name="search-outline" size={20} color={palette.textPrimary} />
           </Pressable>
         </View>
-      </View>
+      </Animated.View>
 
-      <ScrollView contentContainerStyle={styles.contentContainer} showsVerticalScrollIndicator={false}>
+      <Animated.ScrollView
+        style={getItemAnimatedStyle(0)}
+        contentContainerStyle={styles.contentContainer}
+        showsVerticalScrollIndicator={false}
+      >
         <View style={[styles.summaryStrip, { backgroundColor: palette.card, borderColor: palette.border }]}>
           <View style={styles.summaryItem}>
             <Text style={[styles.summaryValue, { color: palette.textPrimary }]}>{posts.length}</Text>
@@ -138,7 +146,7 @@ export function HomeFeedScreen({
           })}
         </View>
 
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.categoryRow}>
+        <Animated.ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.categoryRow}>
           {([
             ['all', copy.all],
             ['electronics', copy.electronics],
@@ -166,7 +174,7 @@ export function HomeFeedScreen({
               </Pressable>
             );
           })}
-        </ScrollView>
+        </Animated.ScrollView>
 
         {filteredPosts.length === 0 ? (
           <View style={[styles.emptyCard, { backgroundColor: palette.card, borderColor: palette.border }]}>
@@ -254,7 +262,7 @@ export function HomeFeedScreen({
         )}
 
         <View style={{ height: 140 }} />
-      </ScrollView>
+      </Animated.ScrollView>
     </SafeAreaView>
   );
 }
