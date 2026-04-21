@@ -56,7 +56,7 @@ order by schemaname, tablename, policyname;
 
 select id, name, public, file_size_limit, allowed_mime_types
 from storage.buckets
-where id in ('avatars', 'post-images')
+where id in ('avatars', 'post-images', 'message-images')
 order by id;
 
 select

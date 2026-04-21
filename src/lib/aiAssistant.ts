@@ -90,7 +90,7 @@ export async function analyzeFoundItemWithAi(input: {
       title: normalizeWhitespace(analysis.title || 'Found item'),
       summary: normalizeWhitespace(analysis.summary || input.description),
       itemType: normalizeWhitespace(analysis.itemType || 'Unknown'),
-      category: analysis.category || 'accessories',
+      category: analysis.category || 'other',
       brand: normalizeWhitespace(analysis.brand || 'Unknown'),
       primaryColor: normalizeWhitespace(analysis.primaryColor || 'Unknown'),
       material: normalizeWhitespace(analysis.material || 'Unknown'),

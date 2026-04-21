@@ -101,9 +101,9 @@ def map_confidence(value: str | None) -> str:
 
 def map_category(value: str | None) -> str:
     normalized = str(value or "").strip().lower()
-    if normalized in {"electronics", "bags", "documents", "accessories"}:
+    if normalized in {"electronics", "bags", "documents", "accessories", "other"}:
         return normalized
-    return "accessories"
+    return "other"
 
 
 def relative_time_label(value: str | None, language: str) -> str:

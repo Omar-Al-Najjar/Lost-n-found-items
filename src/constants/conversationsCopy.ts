@@ -10,6 +10,11 @@ export type ConversationsCopy = {
   emptyTitle: string;
   emptyDescription: string;
   onlineNow: string;
+  deleteChat: string;
+  deleteChatTitle: string;
+  deleteChatBody: string;
+  deleteAction: string;
+  cancelAction: string;
 };
 
 const conversationsCopy: Record<Language, ConversationsCopy> = {
@@ -23,6 +28,11 @@ const conversationsCopy: Record<Language, ConversationsCopy> = {
     emptyTitle: 'No matching conversations',
     emptyDescription: 'Try another search or switch to all chats.',
     onlineNow: 'Online now',
+    deleteChat: 'Delete',
+    deleteChatTitle: 'Delete chat?',
+    deleteChatBody: 'This will remove this chat from your account.',
+    deleteAction: 'Delete',
+    cancelAction: 'Cancel',
   },
   ar: {
     title: '\u0627\u0644\u0631\u0633\u0627\u0626\u0644',
@@ -34,6 +44,11 @@ const conversationsCopy: Record<Language, ConversationsCopy> = {
     emptyTitle: '\u0644\u0627 \u062a\u0648\u062c\u062f \u0645\u062d\u0627\u062f\u062b\u0627\u062a \u0645\u0637\u0627\u0628\u0642\u0629',
     emptyDescription: '\u062c\u0631\u0628 \u0628\u062d\u062b\u064b\u0627 \u0622\u062e\u0631 \u0623\u0648 \u0627\u0639\u0631\u0636 \u0643\u0644 \u0627\u0644\u0645\u062d\u0627\u062f\u062b\u0627\u062a.',
     onlineNow: '\u0645\u062a\u0635\u0644 \u0627\u0644\u0622\u0646',
+    deleteChat: '\u062d\u0630\u0641',
+    deleteChatTitle: '\u062d\u0630\u0641 \u0627\u0644\u0645\u062d\u0627\u062f\u062b\u0629\u061f',
+    deleteChatBody: '\u0633\u064a\u062a\u0645 \u062d\u0630\u0641 \u0647\u0630\u0647 \u0627\u0644\u0645\u062d\u0627\u062f\u062b\u0629 \u0645\u0646 \u062d\u0633\u0627\u0628\u0643.',
+    deleteAction: '\u062d\u0630\u0641',
+    cancelAction: '\u0625\u0644\u063a\u0627\u0621',
   },
 };
 

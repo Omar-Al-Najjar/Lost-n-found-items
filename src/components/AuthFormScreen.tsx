@@ -1,6 +1,9 @@
 import { Ionicons } from '@expo/vector-icons';
+import * as ImagePicker from 'expo-image-picker';
 import React, { useMemo, useState } from 'react';
 import {
+  Alert,
+  Image,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -14,7 +17,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { AuthCopy } from '../constants/authCopy';
 import { AmbientBackground } from './AmbientBackground';
-import { AuthCredentials, Palette } from '../types';
+import { AuthCredentials, Palette, SelectedImage } from '../types';
 
 type AuthMode = 'login' | 'signup';
 
@@ -41,21 +44,64 @@ export function AuthFormScreen({
 }: AuthFormScreenProps) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [displayName, setDisplayName] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+  const [avatarImage, setAvatarImage] = useState<SelectedImage | null>(null);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
   const canSubmit = useMemo(() => {
     if (!email.trim() || !password.trim()) return false;
+    if (mode === 'signup' && !displayName.trim()) return false;
     if (mode === 'signup' && (!confirmPassword.trim() || confirmPassword !== password)) return false;
     return true;
-  }, [confirmPassword, email, mode, password]);
+  }, [confirmPassword, displayName, email, mode, password]);
+
+  const handlePickAvatar = async () => {
+    try {
+      const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (!permission.granted) {
+        Alert.alert(
+          copy.signupTitle,
+          isArabic ? 'يرجى السماح بالوصول للصور لاختيار صورة الملف الشخصي.' : 'Allow photo access to choose a profile picture.'
+        );
+        return;
+      }
+
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ['images'],
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 0.9,
+      });
+
+      if (result.canceled || !result.assets?.length) return;
+      const asset = result.assets[0];
+      setAvatarImage({
+        uri: asset.uri,
+        fileName: asset.fileName ?? null,
+        mimeType: asset.mimeType ?? null,
+        width: asset.width ?? null,
+        height: asset.height ?? null,
+        fileSize: asset.fileSize ?? null,
+      });
+    } catch (error) {
+      const fallback = isArabic ? 'تعذر اختيار الصورة. حاول مرة أخرى.' : 'Could not choose the image. Please try again.';
+      const message =
+        typeof error === 'object' && error !== null && 'message' in error && typeof (error as { message?: unknown }).message === 'string'
+          ? (error as { message: string }).message
+          : fallback;
+      Alert.alert(copy.signupTitle, message || fallback);
+    }
+  };
 
   const handleSubmit = () => {
     if (!canSubmit) return;
     onSubmit({
       email: email.trim(),
       password,
+      displayName: mode === 'signup' ? displayName.trim() : undefined,
+      avatarImage: mode === 'signup' ? avatarImage : null,
     });
   };
 
@@ -115,6 +161,46 @@ export function AuthFormScreen({
                 />
               </View>
             </View>
+
+            {mode === 'signup' && (
+              <View style={styles.avatarPickerBlock}>
+                <Pressable
+                  style={[styles.avatarPickerButton, { backgroundColor: palette.surfaceAlt, borderColor: palette.border }]}
+                  onPress={handlePickAvatar}
+                >
+                  {avatarImage ? (
+                    <Image source={{ uri: avatarImage.uri }} style={styles.avatarPreviewImage} resizeMode="cover" />
+                  ) : (
+                    <View style={[styles.avatarPreviewFallback, { backgroundColor: palette.cardMuted }]}>
+                      <Ionicons name="person-circle-outline" size={40} color={palette.textSecondary} />
+                    </View>
+                  )}
+                  <View style={styles.avatarPickerTextWrap}>
+                    <Text style={[styles.avatarPickerTitle, { color: palette.textPrimary }]}>
+                      {avatarImage ? copy.changeProfilePhoto : copy.pickProfilePhoto}
+                    </Text>
+                  </View>
+                </Pressable>
+                {avatarImage ? (
+                  <Pressable onPress={() => setAvatarImage(null)}>
+                    <Text style={[styles.removeAvatarText, { color: palette.danger }]}>{copy.removeProfilePhoto}</Text>
+                  </Pressable>
+                ) : null}
+              </View>
+            )}
+
+            {mode === 'signup' && (
+              <Field
+                label={copy.username}
+                value={displayName}
+                onChangeText={setDisplayName}
+                placeholder={isArabic ? 'اكتب اسم المستخدم' : 'Enter your username'}
+                icon="person-outline"
+                palette={palette}
+                isArabic={isArabic}
+                secureTextEntry={false}
+              />
+            )}
 
             <Field
               label={copy.email}
@@ -375,6 +461,43 @@ const styles = StyleSheet.create({
   linkText: {
     fontSize: 14,
     marginTop: 2,
+  },
+  avatarPickerBlock: {
+    gap: 8,
+  },
+  avatarPickerButton: {
+    minHeight: 72,
+    borderRadius: 20,
+    borderWidth: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 12,
+    gap: 12,
+  },
+  avatarPreviewFallback: {
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+    alignItems: 'center',
+    justifyContent: 'center',
+    overflow: 'hidden',
+  },
+  avatarPreviewImage: {
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+  },
+  avatarPickerTextWrap: {
+    flex: 1,
+  },
+  avatarPickerTitle: {
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  removeAvatarText: {
+    fontSize: 13,
+    fontWeight: '700',
+    alignSelf: 'flex-start',
   },
   primaryButton: {
     marginTop: 6,

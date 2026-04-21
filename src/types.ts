@@ -44,7 +44,7 @@ export type FeedPost = {
   title: string;
   description: string;
   location: string;
-  category: 'electronics' | 'bags' | 'documents' | 'accessories';
+  category: 'electronics' | 'bags' | 'documents' | 'accessories' | 'other';
   time: string;
   contactName: string;
   image?: SelectedImage | null;
@@ -111,6 +111,8 @@ export type SelectedImage = {
 export type AuthCredentials = {
   email: string;
   password: string;
+  displayName?: string;
+  avatarImage?: SelectedImage | null;
 };
 
 export type ChatPreview = {
@@ -123,6 +125,8 @@ export type ChatPreview = {
   avatarInitial: string;
   avatarColor: string;
   unread: boolean;
+  isOtherUserOnline?: boolean;
+  otherUserLastSeenLabel?: string | null;
 };
 
 export type ChatMessage = {
@@ -130,6 +134,7 @@ export type ChatMessage = {
   text: string;
   time: string;
   mine: boolean;
+  image?: string;
 };
 
 export type NotificationCategory = 'match' | 'message' | 'status';

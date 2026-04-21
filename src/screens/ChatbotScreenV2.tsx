@@ -1,19 +1,18 @@
 import { Ionicons } from '@expo/vector-icons';
 import React from 'react';
-import { Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { AmbientBackground } from '../components/AmbientBackground';
 import { HomeCopy } from '../constants/homeCopy';
 import { HomeFeedItem } from '../data/homeFeed';
-import { AiHubFoundInsight, AiSearchRun, AiMatchCandidate, Palette } from '../types';
+import { AiMatchCandidate, AiSearchRun, Palette } from '../types';
 
 type ChatbotScreenProps = {
   copy: HomeCopy;
   palette: Palette;
   isArabic: boolean;
   aiConfigured: boolean;
-  recentFoundInsights: AiHubFoundInsight[];
   recentSearches: AiSearchRun[];
   likelyMatches: AiMatchCandidate[];
   onOpenFoundFlow: () => void;
@@ -26,7 +25,6 @@ export function ChatbotScreen({
   palette,
   isArabic,
   aiConfigured,
-  recentFoundInsights,
   recentSearches,
   likelyMatches,
   onOpenFoundFlow,
@@ -78,25 +76,7 @@ export function ChatbotScreen({
                     <Text style={styles.scoreBadgeText}>{Math.round(match.score * 100)}%</Text>
                   </View>
                 </View>
-                <Text style={[styles.matchMeta, { color: '#33591B' }, isArabic && styles.textRight]}>
-                  {match.item.contactName} · {match.item.location}
-                </Text>
-                <Text style={[styles.matchReason, { color: '#33591B' }, isArabic && styles.textRight]}>{match.reason}</Text>
               </Pressable>
-            ))}
-          </View>
-        ) : null}
-
-        {recentFoundInsights.length > 0 ? (
-          <View style={styles.section}>
-            <Text style={[styles.sectionTitle, { color: palette.textPrimary }, isArabic && styles.textRight]}>{copy.aiHubRecentFound}</Text>
-            {recentFoundInsights.map((insight) => (
-              <View key={insight.id} style={[styles.insightCard, { backgroundColor: palette.card, borderColor: palette.border }]}>
-                {insight.image ? <Image source={{ uri: insight.image }} style={styles.insightImage} resizeMode="cover" /> : null}
-                <Text style={[styles.insightTitle, { color: palette.textPrimary }, isArabic && styles.textRight]}>{insight.title}</Text>
-                <Text style={[styles.insightSummary, { color: palette.textSecondary }, isArabic && styles.textRight]}>{insight.summary}</Text>
-                <Text style={[styles.insightMeta, { color: palette.textSecondary }, isArabic && styles.textRight]}>{insight.time}</Text>
-              </View>
             ))}
           </View>
         ) : null}
@@ -115,7 +95,7 @@ export function ChatbotScreen({
           </View>
         ) : null}
 
-        {recentFoundInsights.length === 0 && recentSearches.length === 0 && likelyMatches.length === 0 ? (
+        {recentSearches.length === 0 && likelyMatches.length === 0 ? (
           <View style={[styles.emptyCard, { backgroundColor: palette.card, borderColor: palette.border }]}>
             <Ionicons name="sparkles-outline" size={26} color={palette.textSecondary} />
             <Text style={[styles.emptyTitle, { color: palette.textPrimary }, isArabic && styles.textRight]}>{copy.aiHubTitle}</Text>
@@ -226,13 +206,6 @@ const styles = StyleSheet.create({
     fontSize: 17,
     fontWeight: '800',
   },
-  matchMeta: {
-    fontSize: 12,
-  },
-  matchReason: {
-    fontSize: 13,
-    lineHeight: 20,
-  },
   scoreBadge: {
     minWidth: 56,
     borderRadius: 999,
@@ -246,28 +219,6 @@ const styles = StyleSheet.create({
     color: '#33591B',
     fontSize: 12,
     fontWeight: '800',
-  },
-  insightCard: {
-    borderWidth: 1,
-    borderRadius: 22,
-    padding: 14,
-    gap: 8,
-  },
-  insightImage: {
-    width: '100%',
-    height: 150,
-    borderRadius: 18,
-  },
-  insightTitle: {
-    fontSize: 16,
-    fontWeight: '800',
-  },
-  insightSummary: {
-    fontSize: 13,
-    lineHeight: 20,
-  },
-  insightMeta: {
-    fontSize: 12,
   },
   searchCard: {
     borderWidth: 1,

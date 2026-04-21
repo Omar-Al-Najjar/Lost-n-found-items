@@ -641,46 +641,164 @@ class LostFoundPipeline:
 
     def _fallback_parse_lost_item_description(self, lost_description: str) -> dict[str, Any]:
         text = (lost_description or "").strip()
-        low = text.lower()
+        arabic_normalization_map = str.maketrans(
+            {
+                "أ": "ا",
+                "إ": "ا",
+                "آ": "ا",
+                "ة": "ه",
+                "ى": "ي",
+                "ؤ": "و",
+                "ئ": "ي",
+            }
+        )
 
-        item_type = "Unknown"
-        if "wallet" in low:
-            item_type = "wallet"
-        elif "backpack" in low or "bag" in low:
-            item_type = "backpack" if "backpack" in low else "bag"
-        elif "airpods" in low or "earbuds" in low:
-            item_type = "earbuds case" if "case" in low else "earbuds"
-        elif "keys" in low or "keychain" in low:
-            item_type = "keys"
-        elif "sunglasses" in low or "glasses" in low:
-            item_type = "sunglasses"
-        elif "phone" in low or "iphone" in low:
-            item_type = "phone"
+        def normalize_lookup(value: str) -> str:
+            normalized = str(value or "").lower().translate(arabic_normalization_map)
+            normalized = re.sub(r"[\u064b-\u065f\u0670]", "", normalized)
+            normalized = re.sub(r"\s+", " ", normalized)
+            return normalized.strip()
 
-        color = "Unknown"
-        for candidate in ["black", "brown", "white", "silver", "gold", "blue", "red", "green", "pink", "gray", "grey", "yellow"]:
-            if candidate in low:
-                color = candidate
-                break
+        low_lookup = normalize_lookup(text)
 
-        material = "Unknown"
-        for candidate in ["leather", "metal", "plastic", "fabric", "canvas"]:
-            if candidate in low:
-                material = candidate
-                break
+        def has_any(terms: list[str]) -> bool:
+            for term in terms:
+                candidate = normalize_lookup(term)
+                if not candidate:
+                    continue
+                if re.fullmatch(r"[a-z0-9 ]+", candidate):
+                    pattern = rf"(?<![a-z0-9]){re.escape(candidate)}(?![a-z0-9])"
+                    if re.search(pattern, low_lookup):
+                        return True
+                elif candidate in low_lookup:
+                    return True
+            return False
 
-        brand = "Unknown"
-        for candidate in ["apple", "samsung", "nike", "adidas", "ray-ban", "rayban"]:
-            if candidate in low:
-                brand = candidate
-                break
+        def first_match(rules: list[tuple[str, list[str]]], default: str = "Unknown") -> str:
+            for label, terms in rules:
+                if has_any(terms):
+                    return label
+            return default
 
-        category = self.infer_category(item_type=item_type, raw_category="other", text=text)
+        def collect_matches(rules: list[tuple[str, list[str]]]) -> list[str]:
+            return [label for label, terms in rules if has_any(terms)]
 
-        likely_contents = [item for item in ["cards", "cash", "id", "id cards", "license"] if item in low]
-        distinctive_features = [item for item in ["zipper", "logo", "sticker", "engraving", "keychain"] if item in low]
-        location_clues = [item for item in ["university", "gate", "park", "mall", "entrance", "library"] if item in low]
-        time_clues = [item for item in ["this morning", "morning", "today", "yesterday", "afternoon", "evening"] if item in low]
+        item_type = first_match(
+            [
+                (
+                    "earbuds case",
+                    [
+                        "airpods case",
+                        "earbuds case",
+                        "earbud case",
+                        "علبة ايربودز",
+                        "جراب ايربودز",
+                        "حافظة سماعات",
+                        "علبة سماعات",
+                        "جراب سماعات",
+                    ],
+                ),
+                ("earbuds", ["airpods", "earbuds", "earphones", "ايربودز", "سماعات لاسلكية"]),
+                ("wallet", ["wallet", "billfold", "cardholder", "card holder", "محفظة", "محفظه", "جزدان"]),
+                ("backpack", ["backpack", "school bag", "bagpack", "حقيبة ظهر", "حقيبه ظهر", "شنطة ظهر", "شنطه ظهر"]),
+                ("bag", ["handbag", "bag", "purse", "tote", "pouch", "حقيبة", "حقيبه", "شنطة", "شنطه"]),
+                ("keys", ["car keys", "keychain", "keys", "key", "مفاتيح", "مفتاح", "ميدالية مفاتيح", "تعليقة مفاتيح"]),
+                ("sunglasses", ["sunglasses", "glasses", "shades", "نظارة شمس", "نظاره شمس", "نظارات شمس"]),
+                ("phone", ["smartphone", "iphone", "mobile", "phone", "هاتف", "جوال", "موبايل", "تلفون", "ايفون"]),
+                ("laptop", ["laptop", "macbook", "لاب توب", "لابتوب", "حاسوب محمول"]),
+                ("document", ["passport", "document", "id card", "license", "جواز", "وثيقة", "بطاقة هوية", "رخصة"]),
+            ]
+        )
+
+        color = first_match(
+            [
+                ("black", ["black", "اسود", "سوداء", "سوده"]),
+                ("brown", ["brown", "بني", "بنيه"]),
+                ("white", ["white", "ابيض", "بيضاء"]),
+                ("silver", ["silver", "فضي", "فضيه"]),
+                ("gold", ["gold", "ذهبي", "ذهبيه"]),
+                ("blue", ["blue", "ازرق", "زرقاء"]),
+                ("red", ["red", "احمر", "حمراء"]),
+                ("green", ["green", "اخضر", "خضراء"]),
+                ("pink", ["pink", "وردي", "ورديه", "زهري"]),
+                ("gray", ["gray", "grey", "رمادي", "رماديه", "رصاصي"]),
+                ("yellow", ["yellow", "اصفر", "صفراء"]),
+            ]
+        )
+
+        material = first_match(
+            [
+                ("leather", ["leather", "جلد", "جلدي", "جلديه"]),
+                ("metal", ["metal", "معدن", "معدني", "حديد", "المنيوم", "ألمنيوم"]),
+                ("plastic", ["plastic", "بلاستيك", "بلاستيكي"]),
+                ("fabric", ["fabric", "cloth", "قماش", "قماشي", "نسيج"]),
+                ("canvas", ["canvas", "كانفس", "كتان"]),
+            ]
+        )
+
+        brand = first_match(
+            [
+                ("apple", ["apple", "iphone", "ابل", "ايفون"]),
+                ("samsung", ["samsung", "سامسونج"]),
+                ("nike", ["nike", "نايك"]),
+                ("adidas", ["adidas", "اديداس", "ادياس"]),
+                ("ray-ban", ["ray-ban", "rayban", "راي بان", "ريبان"]),
+            ]
+        )
+
+        likely_contents = collect_matches(
+            [
+                ("cards", ["cards", "card", "بطاقات", "بطاقة", "كروت", "كرت"]),
+                ("cash", ["cash", "money", "فلوس", "نقود", "نقد", "مال"]),
+                ("id", ["national id", "id", "هوية", "بطاقة هوية"]),
+                ("license", ["driving license", "license", "رخصة", "رخصة قيادة"]),
+                ("passport", ["passport", "جواز", "جواز سفر", "باسبور"]),
+            ]
+        )
+        distinctive_features = collect_matches(
+            [
+                ("zipper", ["zipper", "zip", "سحاب", "سوستة"]),
+                ("logo", ["logo", "شعار", "علامة"]),
+                ("sticker", ["sticker", "ملصق", "ستيكر"]),
+                ("engraving", ["engraving", "engraved", "نقش", "منقوش", "حفر"]),
+                ("keychain", ["keychain", "ميدالية", "تعليقة"]),
+                ("case", ["case", "cover", "جراب", "غلاف"]),
+            ]
+        )
+        location_clues = collect_matches(
+            [
+                ("university", ["university", "campus", "جامعة", "جامعه", "الحرم"]),
+                ("gate", ["gate", "بوابة", "بوابه"]),
+                ("park", ["park", "حديقة", "حديقه", "منتزه"]),
+                ("mall", ["mall", "مول", "مجمع"]),
+                ("entrance", ["entrance", "entry", "مدخل"]),
+                ("library", ["library", "مكتبة", "مكتبه"]),
+            ]
+        )
+        time_clues = collect_matches(
+            [
+                ("morning", ["this morning", "morning", "الصباح", "هذا الصباح", "صباح"]),
+                ("afternoon", ["this afternoon", "afternoon", "بعد الظهر", "العصر"]),
+                ("evening", ["this evening", "evening", "المساء", "مساء"]),
+                ("night", ["night", "tonight", "late night", "الليل", "ليلة", "الليلة"]),
+                ("today", ["today", "اليوم", "النهارده"]),
+                ("yesterday", ["yesterday", "امس", "أمس", "البارحة"]),
+                ("recently", ["recently", "earlier", "earlier today", "قبل قليل", "من شوي", "من شوية"]),
+            ]
+        )
+
+        category_hint_text = " ".join(
+            [
+                item_type,
+                color,
+                material,
+                brand,
+                " ".join(likely_contents),
+                " ".join(distinctive_features),
+                " ".join(location_clues),
+            ]
+        )
+        category = self.infer_category(item_type=item_type, raw_category="other", text=category_hint_text)
 
         keywords = list(
             dict.fromkeys([item_type, category.lower(), color, material, brand] + likely_contents + distinctive_features + location_clues)

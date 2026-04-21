@@ -8,6 +8,17 @@ import { HomeCopy } from '../constants/homeCopy';
 import { HomeFeedItem } from '../data/homeFeed';
 import { AiSearchRun, Palette } from '../types';
 
+function getReadableChipTextColor(backgroundHex: string) {
+  const hex = backgroundHex.trim().replace('#', '');
+  if (!/^[0-9a-fA-F]{6}$/.test(hex)) return '#102247';
+
+  const red = parseInt(hex.slice(0, 2), 16);
+  const green = parseInt(hex.slice(2, 4), 16);
+  const blue = parseInt(hex.slice(4, 6), 16);
+  const luminance = (0.299 * red + 0.587 * green + 0.114 * blue) / 255;
+  return luminance > 0.58 ? '#102247' : '#F5F1E8';
+}
+
 type SearchScreenProps = {
   copy: HomeCopy;
   palette: Palette;
@@ -15,10 +26,12 @@ type SearchScreenProps = {
   aiConfigured: boolean;
   latestAiSearch: AiSearchRun | null;
   items: HomeFeedItem[];
+  currentUserId: string | null;
   mode?: 'browse' | 'assistant';
   onBack: () => void;
   onRunAiSearch: (query: string) => Promise<AiSearchRun>;
   onOpenItem: (item: HomeFeedItem) => void;
+  onContactItem: (item: HomeFeedItem) => void;
 };
 
 export function SearchScreen({
@@ -28,15 +41,18 @@ export function SearchScreen({
   aiConfigured,
   latestAiSearch,
   items,
+  currentUserId,
   mode = 'browse',
   onBack,
   onRunAiSearch,
   onOpenItem,
+  onContactItem,
 }: SearchScreenProps) {
   const [query, setQuery] = useState(latestAiSearch?.query ?? '');
   const [filter, setFilter] = useState<'all' | 'lost' | 'found'>('all');
   const [category, setCategory] = useState<'all' | HomeFeedItem['category']>('all');
   const [isRunningAiSearch, setIsRunningAiSearch] = useState(false);
+  const activeCategoryTextColor = getReadableChipTextColor(palette.textPrimary);
 
   const isAssistantMode = mode === 'assistant';
 
@@ -54,7 +70,8 @@ export function SearchScreen({
     if (item.category === 'electronics') return 'phone-portrait-outline';
     if (item.category === 'bags') return 'briefcase-outline';
     if (item.category === 'documents') return 'card-outline';
-    return 'key-outline';
+    if (item.category === 'accessories') return 'key-outline';
+    return 'help-circle-outline';
   };
 
   const likelyMatches = latestAiSearch?.matches.filter((match) => match.grouping === 'likely') ?? [];
@@ -176,6 +193,7 @@ export function SearchScreen({
                 ['bags', copy.bags],
                 ['documents', copy.documents],
                 ['accessories', copy.accessories],
+                ['other', copy.other],
               ] as const).map(([key, label]) => {
                 const active = category === key;
                 return (
@@ -190,7 +208,7 @@ export function SearchScreen({
                     ]}
                     onPress={() => setCategory(key)}
                   >
-                    <Text style={[styles.categoryText, { color: active ? palette.accentStrong : palette.textPrimary }]}>
+                    <Text style={[styles.categoryText, { color: active ? activeCategoryTextColor : palette.textPrimary }]}>
                       {label}
                     </Text>
                   </Pressable>
@@ -208,10 +226,9 @@ export function SearchScreen({
                   {copy.aiSearchLikely}
                 </Text>
                 {likelyMatches.map((match) => (
-                  <Pressable
+                  <View
                     key={`likely-${match.item.id}`}
                     style={[styles.aiMatchCard, { backgroundColor: '#F3FBEA', borderColor: '#B9DB94' }]}
-                    onPress={() => onOpenItem(match.item)}
                   >
                     <View style={[styles.aiMatchHeader, isArabic && styles.rowReverse]}>
                       <Text style={[styles.aiMatchTitle, { color: '#33591B' }, isArabic && styles.textRight]}>{match.item.title}</Text>
@@ -226,7 +243,25 @@ export function SearchScreen({
                       {copy.aiSearchReasonLabel}
                     </Text>
                     <Text style={[styles.aiReasonText, { color: '#33591B' }, isArabic && styles.textRight]}>{match.reason}</Text>
-                  </Pressable>
+                    <View style={[styles.aiActionsRow, isArabic && styles.rowReverse]}>
+                      <Pressable
+                        style={[styles.aiSecondaryButton, { borderColor: '#B9DB94' }]}
+                        onPress={() => onOpenItem(match.item)}
+                      >
+                        <Text style={[styles.aiSecondaryButtonText, { color: '#33591B' }]}>{copy.viewDetails}</Text>
+                      </Pressable>
+                      <Pressable
+                        style={[
+                          styles.aiPrimaryButton,
+                          { backgroundColor: '#D8EDC2', opacity: currentUserId && match.item.userId === currentUserId ? 0.45 : 1 },
+                        ]}
+                        onPress={() => onContactItem(match.item)}
+                        disabled={Boolean(currentUserId && match.item.userId === currentUserId)}
+                      >
+                        <Text style={styles.aiPrimaryButtonText}>{copy.contact}</Text>
+                      </Pressable>
+                    </View>
+                  </View>
                 ))}
               </>
             ) : null}
@@ -237,10 +272,9 @@ export function SearchScreen({
                   {copy.aiSearchPossible}
                 </Text>
                 {possibleMatches.map((match) => (
-                  <Pressable
+                  <View
                     key={`possible-${match.item.id}`}
                     style={[styles.aiMatchCard, { backgroundColor: palette.card, borderColor: palette.border }]}
-                    onPress={() => onOpenItem(match.item)}
                   >
                     <View style={[styles.aiMatchHeader, isArabic && styles.rowReverse]}>
                       <Text style={[styles.aiMatchTitle, { color: palette.textPrimary }, isArabic && styles.textRight]}>{match.item.title}</Text>
@@ -255,7 +289,25 @@ export function SearchScreen({
                       {copy.aiSearchReasonLabel}
                     </Text>
                     <Text style={[styles.aiReasonText, { color: palette.textSecondary }, isArabic && styles.textRight]}>{match.reason}</Text>
-                  </Pressable>
+                    <View style={[styles.aiActionsRow, isArabic && styles.rowReverse]}>
+                      <Pressable
+                        style={[styles.aiSecondaryButton, { borderColor: palette.border }]}
+                        onPress={() => onOpenItem(match.item)}
+                      >
+                        <Text style={[styles.aiSecondaryButtonText, { color: palette.textPrimary }]}>{copy.viewDetails}</Text>
+                      </Pressable>
+                      <Pressable
+                        style={[
+                          styles.aiPrimaryButton,
+                          { backgroundColor: palette.accent, opacity: currentUserId && match.item.userId === currentUserId ? 0.45 : 1 },
+                        ]}
+                        onPress={() => onContactItem(match.item)}
+                        disabled={Boolean(currentUserId && match.item.userId === currentUserId)}
+                      >
+                        <Text style={styles.aiPrimaryButtonText}>{copy.contact}</Text>
+                      </Pressable>
+                    </View>
+                  </View>
                 ))}
               </>
             ) : null}
@@ -339,7 +391,9 @@ export function SearchScreen({
                           ? copy.bags
                           : item.category === 'documents'
                             ? copy.documents
-                            : copy.accessories}
+                            : item.category === 'accessories'
+                              ? copy.accessories
+                              : copy.other}
                     </Text>
                     <Text style={[styles.detailsLink, { color: palette.accentSoft }]}>{copy.viewDetails}</Text>
                   </View>
@@ -511,15 +565,43 @@ const styles = StyleSheet.create({
     fontWeight: '800',
   },
   aiMatchMeta: {
-    fontSize: 12,
+    display: 'none',
   },
   aiReasonLabel: {
-    fontSize: 12,
-    fontWeight: '800',
+    display: 'none',
   },
   aiReasonText: {
+    display: 'none',
+  },
+  aiActionsRow: {
+    flexDirection: 'row',
+    gap: 10,
+    marginTop: 4,
+  },
+  aiPrimaryButton: {
+    flex: 1,
+    minHeight: 42,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 12,
+  },
+  aiPrimaryButtonText: {
+    color: '#102247',
     fontSize: 13,
-    lineHeight: 20,
+    fontWeight: '800',
+  },
+  aiSecondaryButton: {
+    minHeight: 42,
+    borderRadius: 14,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 14,
+  },
+  aiSecondaryButtonText: {
+    fontSize: 13,
+    fontWeight: '800',
   },
   scoreBadge: {
     minWidth: 56,

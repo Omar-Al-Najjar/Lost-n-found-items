@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Alert, StatusBar, StyleSheet, useColorScheme, View } from 'react-native';
+import * as ImagePicker from 'expo-image-picker';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { NavigationContainer } from '@react-navigation/native';
 import {
@@ -18,12 +19,19 @@ import { HomeFeedItem } from './src/data/homeFeed';
 import { getTranslations } from './src/i18n';
 import {
   createPost,
+  deleteConversationForCurrentUser,
   fetchMessages,
   findOrCreateConversationForPost,
+  loadCurrentUserProfile,
+  loadConversationPreviews,
   loadAppData,
+  markConversationRead,
   markAllNotificationsRead,
   markNotificationRead,
   sendMessage,
+  sendImageMessage,
+  touchMyPresence,
+  upsertCurrentUserProfile,
   updatePostStatus,
 } from './src/lib/supabaseApp';
 import { analyzeFoundItemWithAi, isAiAssistantConfigured, searchPotentialFoundMatches } from './src/lib/aiAssistant';
@@ -47,7 +55,6 @@ import { supabase } from './src/supabase';
 import { darkPalette, lightPalette } from './src/theme';
 import {
   AiFoundAnalysisDraft,
-  AiHubFoundInsight,
   AiSearchRun,
   AuthCredentials,
   ChatMessage,
@@ -57,6 +64,7 @@ import {
   MyReportItem,
   NotificationItem,
   RouteKey,
+  SelectedImage,
   TabKey,
   ThemeMode,
 } from './src/types';
@@ -84,6 +92,8 @@ export default function App() {
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [currentUserEmail, setCurrentUserEmail] = useState('');
   const [currentUserDisplayName, setCurrentUserDisplayName] = useState('');
+  const [currentUserAvatarUrl, setCurrentUserAvatarUrl] = useState<string | null>(null);
+  const [isUpdatingAvatar, setIsUpdatingAvatar] = useState(false);
   const [selectedConversation, setSelectedConversation] = useState<ChatPreview | null>(null);
   const [selectedConversationMessages, setSelectedConversationMessages] = useState<ChatMessage[]>([]);
   const [selectedItem, setSelectedItem] = useState<HomeFeedItem | null>(null);
@@ -94,6 +104,7 @@ export default function App() {
   const [isSendingMessage, setIsSendingMessage] = useState(false);
   const [pendingFoundDraft, setPendingFoundDraft] = useState<AiFoundAnalysisDraft | null>(null);
   const [aiSearchHistory, setAiSearchHistory] = useState<AiSearchRun[]>([]);
+  const [activeAiSearch, setActiveAiSearch] = useState<AiSearchRun | null>(null);
 
   const isArabic = language === 'ar';
   const isDark = themeMode === 'dark' || (themeMode === 'system' && systemColorScheme === 'dark');
@@ -137,6 +148,9 @@ export default function App() {
     const fallbackName = email ? email.split('@')[0] : '';
 
     setCurrentUserEmail(email);
+    if (!session) {
+      setCurrentUserAvatarUrl(null);
+    }
     setCurrentUserDisplayName(metadataName || fallbackName || (isArabic ? 'المستخدم' : 'User'));
   };
 
@@ -182,7 +196,7 @@ export default function App() {
       isMounted = false;
       subscription.unsubscribe();
     };
-  }, [t.appName]);
+  }, []);
 
   useEffect(() => {
     if (!isAuthenticated) {
@@ -193,6 +207,7 @@ export default function App() {
       setSelectedConversationMessages([]);
       setCurrentUserEmail('');
       setCurrentUserDisplayName('');
+      setCurrentUserAvatarUrl(null);
       return;
     }
 
@@ -214,6 +229,117 @@ export default function App() {
       isMounted = false;
     };
   }, [isAuthenticated, language, t.appName]);
+
+  useEffect(() => {
+    if (!isAuthenticated || !currentUserId) return;
+
+    let isMounted = true;
+    loadCurrentUserProfile(currentUserId)
+      .then((profile) => {
+        if (!isMounted) return;
+        if (profile.displayName?.trim()) {
+          setCurrentUserDisplayName(profile.displayName);
+        }
+        setCurrentUserAvatarUrl(profile.avatarUrl);
+      })
+      .catch(() => {
+        if (!isMounted) return;
+        setCurrentUserAvatarUrl(null);
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [currentUserId, isAuthenticated]);
+
+  useEffect(() => {
+    if (!isAuthenticated) return;
+
+    const pingPresence = async () => {
+      try {
+        await touchMyPresence();
+      } catch {
+        // Presence pings are best-effort; no user interruption needed.
+      }
+    };
+
+    pingPresence();
+    const intervalId = setInterval(pingPresence, 20 * 1000);
+
+    return () => {
+      clearInterval(intervalId);
+    };
+  }, [isAuthenticated]);
+
+  useEffect(() => {
+    if (!isAuthenticated) return;
+    if (route !== 'conversations' && route !== 'directMessage') return;
+
+    let isMounted = true;
+    const syncConversations = async () => {
+      try {
+        const [, nextChats] = await Promise.all([touchMyPresence(), loadConversationPreviews(language)]);
+        if (!isMounted) return;
+        setChats(nextChats);
+        setSelectedConversation((current) => {
+          if (!current) return current;
+          const updated = nextChats.find((chat) => chat.id === current.id);
+          if (!updated) return current;
+          if (route === 'directMessage') {
+            return { ...updated, unread: false };
+          }
+          return updated;
+        });
+      } catch {
+        // Conversation presence refresh is best-effort.
+      }
+    };
+
+    syncConversations();
+    const intervalId = setInterval(syncConversations, 15 * 1000);
+
+    return () => {
+      isMounted = false;
+      clearInterval(intervalId);
+    };
+  }, [isAuthenticated, language, route]);
+
+  useEffect(() => {
+    if (!isAuthenticated) return;
+    if (route !== 'directMessage') return;
+    if (!selectedConversation || !currentUserId) return;
+
+    let isMounted = true;
+    const activeConversationId = selectedConversation.id;
+
+    const syncActiveConversation = async () => {
+      try {
+        await Promise.all([touchMyPresence(), markConversationRead(activeConversationId, currentUserId)]);
+        const [messages, nextChats] = await Promise.all([
+          fetchMessages(activeConversationId, currentUserId, language),
+          loadConversationPreviews(language),
+        ]);
+        if (!isMounted) return;
+        setSelectedConversationMessages(messages);
+        setChats(nextChats);
+        setSelectedConversation((current) => {
+          if (!current || current.id !== activeConversationId) return current;
+          const updated = nextChats.find((chat) => chat.id === activeConversationId);
+          return updated ? { ...updated, unread: false } : { ...current, unread: false };
+        });
+      } catch {
+        // Active chat refresh is best-effort.
+      }
+    };
+
+    syncActiveConversation();
+    const intervalId = setInterval(syncActiveConversation, 8 * 1000);
+
+    return () => {
+      isMounted = false;
+      clearInterval(intervalId);
+    };
+  }, [currentUserId, isAuthenticated, language, route, selectedConversation?.id]);
 
   const tabs = useMemo(
     () => [
@@ -243,15 +369,26 @@ export default function App() {
   };
 
   const openConversation = async (chat: ChatPreview) => {
-    setSelectedConversation(chat);
+    setSelectedConversation({ ...chat, unread: false });
+    setChats((current) => current.map((entry) => (entry.id === chat.id ? { ...entry, unread: false } : entry)));
     setSelectedConversationMessages([]);
     setRoute('directMessage');
 
     if (!currentUserId) return;
 
     try {
-      const messages = await fetchMessages(chat.id, currentUserId, language);
+      await Promise.all([touchMyPresence(), markConversationRead(chat.id, currentUserId)]);
+      const [messages, nextChats] = await Promise.all([
+        fetchMessages(chat.id, currentUserId, language),
+        loadConversationPreviews(language),
+      ]);
       setSelectedConversationMessages(messages);
+      setChats(nextChats);
+      setSelectedConversation((current) => {
+        if (!current || current.id !== chat.id) return current;
+        const updated = nextChats.find((entry) => entry.id === chat.id);
+        return updated ? { ...updated, unread: false } : { ...current, unread: false };
+      });
     } catch (error) {
       Alert.alert(t.appName, getErrorMessage(error, 'Failed to load messages.'));
     }
@@ -386,6 +523,7 @@ export default function App() {
 
   const handleRunAiSearch = async (query: string) => {
     const run = await searchPotentialFoundMatches(query, language);
+    setActiveAiSearch(run);
     setAiSearchHistory((current) => [run, ...current.filter((entry) => entry.id !== run.id)].slice(0, 6));
     return run;
   };
@@ -431,13 +569,51 @@ export default function App() {
     try {
       setIsSendingMessage(true);
       await sendMessage(selectedConversation.id, currentUserId, text);
-      const messages = await fetchMessages(selectedConversation.id, currentUserId, language);
+      await markConversationRead(selectedConversation.id, currentUserId);
+      const [messages, nextChats] = await Promise.all([
+        fetchMessages(selectedConversation.id, currentUserId, language),
+        loadConversationPreviews(language),
+      ]);
       setSelectedConversationMessages(messages);
-      await refreshAppData();
+      setChats(nextChats);
     } catch (error) {
       Alert.alert(t.appName, getErrorMessage(error, 'Failed to send the message.'));
     } finally {
       setIsSendingMessage(false);
+    }
+  };
+
+  const handleSendImage = async (image: SelectedImage) => {
+    if (!selectedConversation || !currentUserId) return;
+
+    try {
+      setIsSendingMessage(true);
+      await sendImageMessage(selectedConversation.id, currentUserId, image);
+      await markConversationRead(selectedConversation.id, currentUserId);
+      const [messages, nextChats] = await Promise.all([
+        fetchMessages(selectedConversation.id, currentUserId, language),
+        loadConversationPreviews(language),
+      ]);
+      setSelectedConversationMessages(messages);
+      setChats(nextChats);
+    } catch (error) {
+      Alert.alert(t.appName, getErrorMessage(error, 'Failed to send the image.'));
+    } finally {
+      setIsSendingMessage(false);
+    }
+  };
+
+  const handleDeleteConversation = async (chat: ChatPreview) => {
+    try {
+      await deleteConversationForCurrentUser(chat.id);
+      const nextChats = await loadConversationPreviews(language);
+      setChats(nextChats);
+      if (selectedConversation?.id === chat.id) {
+        setSelectedConversation(null);
+        setSelectedConversationMessages([]);
+      }
+    } catch (error) {
+      Alert.alert(t.appName, getErrorMessage(error, 'Failed to delete the conversation.'));
     }
   };
 
@@ -452,13 +628,53 @@ export default function App() {
     }
   };
 
-  const handleSignup = async ({ email, password }: AuthCredentials) => {
+  const handleSignup = async ({ email, password, displayName, avatarImage }: AuthCredentials) => {
     try {
-      const { error } = await supabase.auth.signUp({ email, password });
+      const trimmedName = displayName?.trim() ?? '';
+      const fallbackName = email.split('@')[0] || (isArabic ? 'المستخدم' : 'User');
+      const resolvedDisplayName = trimmedName || fallbackName;
+      const { data, error } = await supabase.auth.signUp({
+        email,
+        password,
+        options: {
+          data: {
+            display_name: resolvedDisplayName,
+          },
+        },
+      });
 
       if (error) {
         Alert.alert(t.appName, getErrorMessage(error, 'Signup failed.'));
         return;
+      }
+
+      if (data.user?.id && data.session) {
+        try {
+          const profile = await upsertCurrentUserProfile({
+            userId: data.user.id,
+            displayName: resolvedDisplayName,
+            avatarImage: avatarImage ?? null,
+          });
+          setCurrentUserDisplayName(profile.displayName || resolvedDisplayName);
+          setCurrentUserAvatarUrl(profile.avatarUrl);
+        } catch (profileError) {
+          Alert.alert(
+            t.appName,
+            getErrorMessage(
+              profileError,
+              isArabic
+                ? 'تم إنشاء الحساب لكن تعذر حفظ بيانات الملف الشخصي بالكامل.'
+                : 'Account created, but profile details were not fully saved.'
+            )
+          );
+        }
+      } else if (avatarImage) {
+        Alert.alert(
+          t.appName,
+          isArabic
+            ? 'تم إنشاء الحساب. أضف صورة الملف الشخصي بعد تسجيل الدخول.'
+            : 'Account created. Add your profile photo after you sign in.'
+        );
       }
 
       Alert.alert(
@@ -472,6 +688,54 @@ export default function App() {
     }
   };
 
+  const handleEditAvatar = async () => {
+    if (!currentUserId || isUpdatingAvatar) return;
+
+    try {
+      const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (!permission.granted) {
+        Alert.alert(
+          t.appName,
+          isArabic
+            ? 'يرجى السماح بالوصول للصور لتحديث صورة الملف الشخصي.'
+            : 'Allow photo access to update your profile picture.'
+        );
+        return;
+      }
+
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ['images'],
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 0.9,
+      });
+
+      if (result.canceled || !result.assets?.length) return;
+
+      const asset = result.assets[0];
+      setIsUpdatingAvatar(true);
+      const profile = await upsertCurrentUserProfile({
+        userId: currentUserId,
+        avatarImage: {
+          uri: asset.uri,
+          fileName: asset.fileName ?? null,
+          mimeType: asset.mimeType ?? null,
+          width: asset.width ?? null,
+          height: asset.height ?? null,
+          fileSize: asset.fileSize ?? null,
+        },
+      });
+      setCurrentUserAvatarUrl(profile.avatarUrl);
+      if (profile.displayName?.trim()) {
+        setCurrentUserDisplayName(profile.displayName);
+      }
+    } catch (error) {
+      Alert.alert(t.appName, getErrorMessage(error, 'Failed to update profile photo.'));
+    } finally {
+      setIsUpdatingAvatar(false);
+    }
+  };
+
   const handleLogout = async () => {
     await supabase.auth.signOut();
     setSelectedConversation(null);
@@ -480,22 +744,15 @@ export default function App() {
     setHighlightedReportId(null);
     setPendingFoundDraft(null);
     setAiSearchHistory([]);
+    setActiveAiSearch(null);
+    setCurrentUserAvatarUrl(null);
+    setIsUpdatingAvatar(false);
   };
 
   const unreadNotificationsCount = notifications.filter((item) => item.unread).length;
   const aiConfigured = isAiAssistantConfigured();
-  const aiHubFoundInsights: AiHubFoundInsight[] = reports
-    .filter((report) => report.type === 'found')
-    .slice(0, 3)
-    .map((report) => ({
-      id: report.id,
-      title: report.title,
-      summary: report.description,
-      confidence: report.status === 'resolved' ? 'high' : report.status === 'matching' ? 'medium' : 'low',
-      time: report.time,
-      image: report.image,
-    }));
-  const latestAiMatches = aiSearchHistory[0]?.matches.slice(0, 3) ?? [];
+  const visibleAiSearch = activeAiSearch ?? aiSearchHistory[0] ?? null;
+  const latestAiMatches = visibleAiSearch?.matches.slice(0, 3) ?? [];
 
   const renderCoreScreen = () => {
     switch (route) {
@@ -522,7 +779,6 @@ export default function App() {
             palette={palette}
             isArabic={isArabic}
             aiConfigured={aiConfigured}
-            recentFoundInsights={aiHubFoundInsights}
             recentSearches={aiSearchHistory}
             likelyMatches={latestAiMatches}
             onOpenFoundFlow={() => setRoute('reportFound')}
@@ -552,6 +808,7 @@ export default function App() {
             isArabic={isArabic}
             chats={chats}
             onOpenConversation={openConversation}
+            onDeleteConversation={handleDeleteConversation}
           />
         );
       case 'directMessage':
@@ -564,6 +821,7 @@ export default function App() {
             messages={selectedConversationMessages}
             isSending={isSendingMessage}
             onSendMessage={handleSendMessage}
+            onSendImage={handleSendImage}
             onBack={() => {
               setSelectedConversation(null);
               setSelectedConversationMessages([]);
@@ -580,6 +838,7 @@ export default function App() {
             isArabic={isArabic}
             userDisplayName={currentUserDisplayName || (isArabic ? 'المستخدم' : 'User')}
             userEmail={currentUserEmail}
+            userAvatarUrl={currentUserAvatarUrl}
             darkEnabled={darkEnabled}
             setDarkEnabled={setDarkEnabled}
             setThemeMode={setThemeMode}
@@ -593,6 +852,8 @@ export default function App() {
               setHighlightedReportId(null);
               setRoute('myReports');
             }}
+            isUpdatingAvatar={isUpdatingAvatar}
+            onEditAvatar={handleEditAvatar}
             onLogout={handleLogout}
           />
         );
@@ -611,11 +872,13 @@ export default function App() {
             isArabic={isArabic}
             items={posts}
             aiConfigured={aiConfigured}
-            latestAiSearch={aiSearchHistory[0] ?? null}
+            latestAiSearch={visibleAiSearch}
+            currentUserId={currentUserId}
             mode={searchMode}
             onBack={() => setRoute(searchBackRoute)}
             onRunAiSearch={handleRunAiSearch}
             onOpenItem={(item) => openItemDetails(item, 'search')}
+            onContactItem={openConversationFromPost}
           />
         );
       case 'itemDetails':

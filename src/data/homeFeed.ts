@@ -9,7 +9,7 @@ type HomeFeedItemBase = {
   location: string;
   time: string;
   contactName: string;
-  category: 'electronics' | 'bags' | 'documents' | 'accessories';
+  category: 'electronics' | 'bags' | 'documents' | 'accessories' | 'other';
   status?: 'open' | 'underReview' | 'matched';
 };
 

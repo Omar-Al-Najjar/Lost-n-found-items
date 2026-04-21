@@ -1,9 +1,10 @@
 import { Ionicons } from '@expo/vector-icons';
+import * as ImagePicker from 'expo-image-picker';
 import React, { useEffect, useRef, useState } from 'react';
-import { Animated, Easing, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Alert, Animated, Easing, Image, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import { AmbientBackground } from '../components/AmbientBackground';
-import { ChatMessage, ChatPreview, Palette } from '../types';
+import { ChatMessage, ChatPreview, Palette, SelectedImage } from '../types';
 
 type DirectMessageScreenProps = {
   t: any;
@@ -13,6 +14,7 @@ type DirectMessageScreenProps = {
   messages: ChatMessage[];
   isSending: boolean;
   onSendMessage: (text: string) => void;
+  onSendImage: (image: SelectedImage) => Promise<void>;
   onBack: () => void;
 };
 
@@ -24,6 +26,7 @@ export function DirectMessageScreen({
   messages,
   isSending,
   onSendMessage,
+  onSendImage,
   onBack,
 }: DirectMessageScreenProps) {
   const [messageText, setMessageText] = useState('');
@@ -43,6 +46,12 @@ export function DirectMessageScreen({
       Animated.spring(composerY, { toValue: 0, tension: 190, friction: 22, useNativeDriver: true }),
     ]).start();
 
+    if (!chat.isOtherUserOnline) {
+      onlinePulse.stopAnimation();
+      onlinePulse.setValue(1);
+      return;
+    }
+
     const pulse = Animated.loop(
       Animated.sequence([
         Animated.timing(onlinePulse, { toValue: 0.55, duration: 900, useNativeDriver: true }),
@@ -52,7 +61,7 @@ export function DirectMessageScreen({
     pulse.start();
 
     return () => pulse.stop();
-  }, [composerY, headerY, onlinePulse]);
+  }, [chat.isOtherUserOnline, composerY, headerY, onlinePulse]);
 
   useEffect(() => {
     const start = previousLength.current === 0 ? 0 : previousLength.current;
@@ -102,6 +111,57 @@ export function DirectMessageScreen({
     setMessageText('');
   };
 
+  const handlePickImage = async () => {
+    if (isSending) return;
+
+    try {
+      const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (!permission.granted) {
+        Alert.alert(
+          t.appName,
+          isArabic ? 'يرجى السماح بالوصول للصور لإرسال صورة في الدردشة.' : 'Allow photo access to send an image in chat.'
+        );
+        return;
+      }
+
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ['images'],
+        allowsEditing: false,
+        quality: 0.85,
+      });
+
+      if (result.canceled || !result.assets?.length) return;
+
+      const asset = result.assets[0];
+      await onSendImage({
+        uri: asset.uri,
+        fileName: asset.fileName ?? null,
+        mimeType: asset.mimeType ?? null,
+        width: asset.width ?? null,
+        height: asset.height ?? null,
+        fileSize: asset.fileSize ?? null,
+      });
+    } catch (error) {
+      const fallback = isArabic ? 'تعذر إرسال الصورة. حاول مرة أخرى.' : 'Could not send the image. Please try again.';
+      const message =
+        typeof error === 'object' && error !== null && 'message' in error && typeof (error as { message?: unknown }).message === 'string'
+          ? (error as { message: string }).message
+          : fallback;
+      Alert.alert(t.appName, message || fallback);
+    }
+  };
+
+  const statusText =
+    chat.isOtherUserOnline
+      ? t.onlineNow
+      : chat.otherUserLastSeenLabel
+        ? isArabic
+          ? `آخر ظهور ${chat.otherUserLastSeenLabel}`
+          : `Last seen ${chat.otherUserLastSeenLabel}`
+        : isArabic
+          ? 'غير متصل'
+          : 'Offline';
+
   return (
     <View style={[styles.screen, { backgroundColor: palette.bg }]}>
       <AmbientBackground primary={palette.accent} secondary={palette.accentSoft} tertiary={chat.avatarColor} />
@@ -122,9 +182,24 @@ export function DirectMessageScreen({
             {chat.name}
           </Text>
           <View style={[styles.onlineRow, isArabic && styles.rowReverse]}>
-            <Text style={[styles.onlineText, { color: palette.accent }, isArabic && styles.textRight]}>{t.onlineNow}</Text>
+            <Text
+              style={[
+                styles.onlineText,
+                { color: chat.isOtherUserOnline ? palette.accent : palette.textSecondary },
+                isArabic && styles.textRight,
+              ]}
+            >
+              {statusText}
+            </Text>
             <Animated.View
-              style={[styles.onlineDot, { backgroundColor: palette.accent, opacity: onlinePulse, transform: [{ scale: onlinePulse }] }]}
+              style={[
+                styles.onlineDot,
+                {
+                  backgroundColor: chat.isOtherUserOnline ? palette.accent : palette.textSecondary,
+                  opacity: chat.isOtherUserOnline ? onlinePulse : 0.7,
+                  transform: chat.isOtherUserOnline ? [{ scale: onlinePulse }] : [{ scale: 1 }],
+                },
+              ]}
             />
           </View>
         </View>
@@ -163,7 +238,10 @@ export function DirectMessageScreen({
                 },
               ]}
             >
-              <Text style={[styles.bubbleText, { color: message.mine ? '#000000' : palette.textPrimary }]}>{message.text}</Text>
+              {message.image ? <Image source={{ uri: message.image }} style={styles.messageImage} resizeMode="cover" /> : null}
+              {message.text && message.text !== '[image]' ? (
+                <Text style={[styles.bubbleText, { color: message.mine ? '#000000' : palette.textPrimary }]}>{message.text}</Text>
+              ) : null}
             </View>
             <Text style={[styles.timeText, { color: palette.textSecondary }]}>{message.time}</Text>
           </Animated.View>
@@ -178,7 +256,11 @@ export function DirectMessageScreen({
           { backgroundColor: palette.bg, borderTopColor: palette.border, transform: [{ translateY: composerY }] },
         ]}
       >
-        <Pressable style={[styles.roundButton, { backgroundColor: palette.topBar, borderColor: palette.border }]}>
+        <Pressable
+          style={[styles.roundButton, { backgroundColor: palette.topBar, borderColor: palette.border, opacity: isSending ? 0.55 : 1 }]}
+          onPress={handlePickImage}
+          disabled={isSending}
+        >
           <Ionicons name="image-outline" size={24} color={palette.navIcon} />
         </Pressable>
 
@@ -308,6 +390,12 @@ const styles = StyleSheet.create({
     fontSize: 18,
     lineHeight: 26,
     textAlign: 'right',
+  },
+  messageImage: {
+    width: 220,
+    height: 220,
+    borderRadius: 12,
+    marginBottom: 8,
   },
   timeText: {
     marginTop: 6,

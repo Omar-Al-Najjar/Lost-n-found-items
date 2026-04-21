@@ -1,11 +1,22 @@
 import { Ionicons } from '@expo/vector-icons';
 import React, { useMemo, useState } from 'react';
-import { Keyboard, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Alert, Keyboard, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { AmbientBackground } from '../components/AmbientBackground';
 import { ConversationsCopy } from '../constants/conversationsCopy';
 import { ChatPreview, Palette } from '../types';
+
+function getReadableChipTextColor(backgroundHex: string) {
+  const hex = backgroundHex.trim().replace('#', '');
+  if (!/^[0-9a-fA-F]{6}$/.test(hex)) return '#102247';
+
+  const red = parseInt(hex.slice(0, 2), 16);
+  const green = parseInt(hex.slice(2, 4), 16);
+  const blue = parseInt(hex.slice(4, 6), 16);
+  const luminance = (0.299 * red + 0.587 * green + 0.114 * blue) / 255;
+  return luminance > 0.58 ? '#102247' : '#F5F1E8';
+}
 
 type ConversationsScreenProps = {
   copy: ConversationsCopy;
@@ -13,6 +24,7 @@ type ConversationsScreenProps = {
   isArabic: boolean;
   chats: ChatPreview[];
   onOpenConversation: (chat: ChatPreview) => void;
+  onDeleteConversation: (chat: ChatPreview) => Promise<void>;
 };
 
 export function ConversationsScreen({
@@ -21,9 +33,11 @@ export function ConversationsScreen({
   isArabic,
   chats,
   onOpenConversation,
+  onDeleteConversation,
 }: ConversationsScreenProps) {
   const [query, setQuery] = useState('');
   const [filter, setFilter] = useState<'all' | 'unread'>('all');
+  const activeFilterTextColor = getReadableChipTextColor(palette.textPrimary);
 
   const filteredChats = useMemo(() => {
     return chats.filter((chat) => {
@@ -35,6 +49,19 @@ export function ConversationsScreen({
   }, [chats, filter, query]);
 
   const unreadCount = chats.filter((chat) => chat.unread).length;
+
+  const handleDeleteConversation = (chat: ChatPreview) => {
+    Alert.alert(copy.deleteChatTitle, copy.deleteChatBody, [
+      { text: copy.cancelAction, style: 'cancel' },
+      {
+        text: copy.deleteAction,
+        style: 'destructive',
+        onPress: () => {
+          void onDeleteConversation(chat);
+        },
+      },
+    ]);
+  };
 
   return (
     <SafeAreaView edges={['top']} style={styles.screen}>
@@ -96,7 +123,7 @@ export function ConversationsScreen({
                 ]}
                 onPress={() => setFilter(key)}
               >
-                <Text style={[styles.filterText, { color: active ? palette.accentStrong : palette.textPrimary }]}>
+                <Text style={[styles.filterText, { color: active ? activeFilterTextColor : palette.textPrimary }]}>
                   {label}
                 </Text>
               </Pressable>
@@ -142,13 +169,24 @@ export function ConversationsScreen({
                 <View style={[styles.metaRow, isArabic && styles.rowReverse]}>
                   <Text style={[styles.metaText, { color: palette.textSecondary }]}>{chat.time}</Text>
                   <View style={styles.onlineBadge}>
-                    <View style={[styles.onlineDot, { backgroundColor: '#6FAE3C' }]} />
-                    <Text style={[styles.onlineText, { color: palette.textSecondary }]}>{copy.onlineNow}</Text>
+                    <View style={[styles.onlineDot, { backgroundColor: chat.isOtherUserOnline ? '#6FAE3C' : '#95A0A8' }]} />
+                    <Text style={[styles.onlineText, { color: palette.textSecondary }]}>
+                      {chat.isOtherUserOnline ? copy.onlineNow : chat.otherUserLastSeenLabel ?? (isArabic ? 'غير متصل' : 'Offline')}
+                    </Text>
                   </View>
                 </View>
               </View>
 
-              <Ionicons name={isArabic ? 'chevron-back' : 'chevron-forward'} size={20} color={palette.navIcon} />
+              <View style={[styles.cardActions, isArabic && styles.rowReverse]}>
+                <Pressable
+                  style={[styles.deleteActionButton, { borderColor: palette.border, backgroundColor: palette.topBar }]}
+                  onPress={() => handleDeleteConversation(chat)}
+                >
+                  <Ionicons name="trash-outline" size={16} color={palette.danger} />
+                  <Text style={[styles.deleteActionText, { color: palette.danger }]}>{copy.deleteChat}</Text>
+                </Pressable>
+                <Ionicons name={isArabic ? 'chevron-back' : 'chevron-forward'} size={20} color={palette.navIcon} />
+              </View>
             </Pressable>
           ))
         )}
@@ -306,6 +344,24 @@ const styles = StyleSheet.create({
   },
   onlineText: {
     fontSize: 12,
+  },
+  cardActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  deleteActionButton: {
+    borderWidth: 1,
+    borderRadius: 999,
+    minHeight: 28,
+    paddingHorizontal: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  deleteActionText: {
+    fontSize: 11,
+    fontWeight: '700',
   },
   emptyCard: {
     borderWidth: 1,

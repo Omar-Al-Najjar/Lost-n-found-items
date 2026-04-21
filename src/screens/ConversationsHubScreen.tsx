@@ -7,6 +7,17 @@ import { AmbientBackground } from '../components/AmbientBackground';
 import { ConversationsCopy } from '../constants/conversationsCopy';
 import { ChatPreview, Palette } from '../types';
 
+function getReadableChipTextColor(backgroundHex: string) {
+  const hex = backgroundHex.trim().replace('#', '');
+  if (!/^[0-9a-fA-F]{6}$/.test(hex)) return '#102247';
+
+  const red = parseInt(hex.slice(0, 2), 16);
+  const green = parseInt(hex.slice(2, 4), 16);
+  const blue = parseInt(hex.slice(4, 6), 16);
+  const luminance = (0.299 * red + 0.587 * green + 0.114 * blue) / 255;
+  return luminance > 0.58 ? '#102247' : '#F5F1E8';
+}
+
 type ConversationsHubScreenProps = {
   copy: ConversationsCopy;
   palette: Palette;
@@ -24,6 +35,7 @@ export function ConversationsHubScreen({
 }: ConversationsHubScreenProps) {
   const [query, setQuery] = useState('');
   const [filter, setFilter] = useState<'all' | 'unread'>('all');
+  const activeFilterTextColor = getReadableChipTextColor(palette.textPrimary);
 
   const filteredChats = useMemo(() => {
     return chats.filter((chat) => {
@@ -87,7 +99,7 @@ export function ConversationsHubScreen({
                 ]}
                 onPress={() => setFilter(key)}
               >
-                <Text style={[styles.filterText, { color: active ? palette.accentStrong : palette.textPrimary }]}>
+                <Text style={[styles.filterText, { color: active ? activeFilterTextColor : palette.textPrimary }]}>
                   {label}
                 </Text>
               </Pressable>

@@ -19,7 +19,7 @@ type ReportItemFormProps = {
   onSubmitPost: (post: FeedPost) => void;
 };
 
-const categories: FeedPost['category'][] = ['electronics', 'bags', 'documents', 'accessories'];
+const categories: FeedPost['category'][] = ['electronics', 'bags', 'documents', 'accessories', 'other'];
 
 export function ReportItemForm({
   copy,
@@ -47,6 +47,7 @@ export function ReportItemForm({
       bags: copy.bags,
       documents: copy.documents,
       accessories: copy.accessories,
+      other: copy.other,
     }),
     [copy]
   );

@@ -41,7 +41,8 @@ export function ItemDetailsScreen({
     if (item.category === 'electronics') return 'phone-portrait-outline';
     if (item.category === 'bags') return 'briefcase-outline';
     if (item.category === 'documents') return 'card-outline';
-    return 'key-outline';
+    if (item.category === 'accessories') return 'key-outline';
+    return 'help-circle-outline';
   };
 
   return (

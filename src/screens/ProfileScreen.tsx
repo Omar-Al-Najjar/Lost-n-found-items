@@ -1,6 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import React, { useEffect, useRef } from 'react';
-import { Animated, Easing, Pressable, ScrollView, StyleSheet, Switch, Text, View } from 'react-native';
+import { Animated, Easing, Image, Pressable, ScrollView, StyleSheet, Switch, Text, View } from 'react-native';
 
 import { AmbientBackground } from '../components/AmbientBackground';
 import { AccountCopy } from '../constants/accountCopy';
@@ -14,6 +14,7 @@ type ProfileScreenProps = {
   isArabic: boolean;
   userDisplayName: string;
   userEmail: string;
+  userAvatarUrl?: string | null;
   darkEnabled: boolean;
   setDarkEnabled: (value: boolean) => void;
   setThemeMode: (mode: ThemeMode) => void;
@@ -24,6 +25,8 @@ type ProfileScreenProps = {
   unreadNotificationsCount: number;
   onOpenNotifications: () => void;
   onOpenMyReports: () => void;
+  isUpdatingAvatar?: boolean;
+  onEditAvatar: () => void;
   onLogout: () => void;
 };
 
@@ -34,6 +37,7 @@ export function ProfileScreen({
   isArabic,
   userDisplayName,
   userEmail,
+  userAvatarUrl,
   darkEnabled,
   setDarkEnabled,
   setThemeMode,
@@ -44,6 +48,8 @@ export function ProfileScreen({
   unreadNotificationsCount,
   onOpenNotifications,
   onOpenMyReports,
+  isUpdatingAvatar = false,
+  onEditAvatar,
   onLogout,
 }: ProfileScreenProps) {
   const isDark = palette.bg === darkPalette.bg;
@@ -328,10 +334,16 @@ export function ProfileScreen({
           <View style={styles.profileRowCenter}>
             <Animated.View style={{ transform: [{ scale: avatarScale }, { rotate: avatarRotateDeg }] }}>
               <View style={[styles.avatar, { backgroundColor: palette.accentSoft }]}>
-                <View style={styles.avatarOverlay} />
-                <Text style={[styles.avatarText, { color: palette.accentStrong }]}>
-                  {userDisplayName.charAt(0).toUpperCase()}
-                </Text>
+                {userAvatarUrl ? (
+                  <Image source={{ uri: userAvatarUrl }} style={styles.avatarImage} resizeMode="cover" />
+                ) : (
+                  <>
+                    <View style={styles.avatarOverlay} />
+                    <Text style={[styles.avatarText, { color: palette.accentStrong }]}>
+                      {userDisplayName.charAt(0).toUpperCase()}
+                    </Text>
+                  </>
+                )}
               </View>
             </Animated.View>
 
@@ -339,6 +351,22 @@ export function ProfileScreen({
               <Text style={[styles.profileName, { color: palette.textPrimary }]}>{userDisplayName}</Text>
               <Text style={[styles.profileMeta, { color: palette.textSecondary }]}>{userEmail}</Text>
             </View>
+            <Pressable
+              style={[styles.avatarEditButton, { borderColor: palette.border, backgroundColor: palette.surfaceAlt }]}
+              onPress={onEditAvatar}
+              disabled={isUpdatingAvatar}
+            >
+              <Ionicons name="camera-outline" size={16} color={palette.textPrimary} />
+              <Text style={[styles.avatarEditText, { color: palette.textPrimary }]}>
+                {isUpdatingAvatar
+                  ? isArabic
+                    ? 'جارٍ التحديث...'
+                    : 'Updating...'
+                  : isArabic
+                    ? 'تعديل الصورة'
+                    : 'Edit photo'}
+              </Text>
+            </Pressable>
           </View>
         </Animated.View>
 
@@ -601,8 +629,26 @@ const styles = StyleSheet.create({
     ...StyleSheet.absoluteFillObject,
     backgroundColor: 'rgba(184, 237, 68, 0.2)',
   },
+  avatarImage: {
+    width: '100%',
+    height: '100%',
+  },
   avatarText: {
     fontSize: 50,
+    fontWeight: '700',
+  },
+  avatarEditButton: {
+    marginTop: 10,
+    borderWidth: 1,
+    borderRadius: 999,
+    minHeight: 34,
+    paddingHorizontal: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  avatarEditText: {
+    fontSize: 13,
     fontWeight: '700',
   },
   centerTextWrap: {

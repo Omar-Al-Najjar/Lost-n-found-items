@@ -11,8 +11,28 @@ This folder contains the schema consolidation for the mobile MVP.
   - feed, my-posts, and conversation-list views
   - cleanup of legacy `items`-style tables
 
+- `migrations/20260421_post_resolution_retention_cleanup.sql`
+  - adds `resolved_at` + `purge_after_at` on `posts`
+  - auto-hides resolved posts from public feed
+  - keeps found posts internal (`is_public = false`) even when active
+  - adds `purge_expired_resolved_posts(batch_size)` cleanup function
+
+- `migrations/20260421_require_handed_off_for_purge.sql`
+  - adds `handed_to_owner` to `posts`
+  - ensures purge only applies when `handed_to_owner = true`
+  - updates purge function and resolution trigger accordingly
+
+- `migrations/20260421_chat_images_and_presence.sql`
+  - adds profile `last_seen_at` + `touch_my_presence()` RPC
+  - adds image support fields on `messages` and enum value `message_type = 'image'`
+  - creates private `message-images` bucket + storage policies
+  - updates `conversation_list_view` with `other_last_seen_at`
+
 - `queries/verify_mobile_mvp_schema.sql`
   - post-migration verification queries
+
+- `queries/setup_resolved_post_purge_cron.sql`
+  - optional pg_cron schedule for periodic purge of resolved posts past retention
 
 ## How to apply
 

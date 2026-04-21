@@ -48,11 +48,18 @@ type NotificationRow = {
   created_at: string;
 };
 
+type ProfileRow = {
+  id: string;
+  display_name: string | null;
+  avatar_path: string | null;
+};
+
 type ConversationRow = {
   conversation_id: string;
   context_post_id: string | null;
   other_user_id: string | null;
   other_display_name: string | null;
+  other_last_seen_at: string | null;
   latest_message_body: string | null;
   latest_message_created_at: string | null;
   last_message_at: string | null;
@@ -64,6 +71,8 @@ type MessageRow = {
   body: string;
   sender_user_id: string;
   created_at: string;
+  type: 'text' | 'system' | 'image';
+  image_path: string | null;
 };
 
 export type AppBootstrapData = {
@@ -71,6 +80,12 @@ export type AppBootstrapData = {
   reports: MyReportItem[];
   notifications: NotificationItem[];
   chats: ChatPreview[];
+};
+
+export type CurrentUserProfile = {
+  displayName: string | null;
+  avatarPath: string | null;
+  avatarUrl: string | null;
 };
 
 export type CreatePostInput = {
@@ -103,6 +118,10 @@ const fallbackText = {
     unknownLocation: 'موقع غير معروف',
   },
 } as const;
+
+const IMAGE_MESSAGE_PLACEHOLDER = '[image]';
+const ONLINE_THRESHOLD_MINUTES = 2;
+const IMAGE_PREVIEW_TEXT = 'Image';
 
 function assertNoError(error: { message: string } | null) {
   if (error) {
@@ -163,6 +182,13 @@ function formatRelativeDate(value: string | null, language: Language) {
   return rtf.format(diffDays, 'day');
 }
 
+function isUserOnline(lastSeenAt: string | null) {
+  if (!lastSeenAt) return false;
+  const lastSeen = new Date(lastSeenAt).getTime();
+  if (Number.isNaN(lastSeen)) return false;
+  return Date.now() - lastSeen <= ONLINE_THRESHOLD_MINUTES * 60 * 1000;
+}
+
 function buildAvatarColor(seed: string) {
   const colors = ['#D95C63', '#6FAE3C', '#4A7FE6', '#D49728', '#8E63D9'];
   const hash = seed.split('').reduce((total, char) => total + char.charCodeAt(0), 0);
@@ -210,6 +236,26 @@ function createDraftFileName(image: SelectedImage) {
     : 'draft-image';
 
   return `${baseName || 'draft-image'}-${generateUuid()}.${extension}`;
+}
+
+function createMessageImageFileName(image: SelectedImage) {
+  const originalName = image.fileName?.trim();
+  const extensionFromMime = image.mimeType?.split('/')[1]?.toLowerCase();
+  const extensionFromName = originalName?.includes('.') ? originalName.split('.').pop()?.toLowerCase() : null;
+  const extension = extensionFromName || extensionFromMime || 'jpg';
+  const baseName = originalName
+    ? originalName.replace(/\.[^/.]+$/, '').replace(/[^a-zA-Z0-9-_]/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '')
+    : 'chat-image';
+
+  return `${baseName || 'chat-image'}-${generateUuid()}.${extension}`;
+}
+
+function createAvatarFileName(image: SelectedImage) {
+  const originalName = image.fileName?.trim();
+  const extensionFromMime = image.mimeType?.split('/')[1]?.toLowerCase();
+  const extensionFromName = originalName?.includes('.') ? originalName.split('.').pop()?.toLowerCase() : null;
+  const extension = extensionFromName || extensionFromMime || 'jpg';
+  return `avatar-${generateUuid()}.${extension}`;
 }
 
 async function uploadPostImage(postId: string, userId: string, image: SelectedImage) {
@@ -292,11 +338,11 @@ async function readImageArrayBuffer(uri: string) {
   return bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength);
 }
 
-async function buildSignedImageUrlMap(paths: Array<string | null | undefined>) {
+async function buildSignedImageUrlMap(paths: Array<string | null | undefined>, bucket = 'post-images') {
   const uniquePaths = [...new Set(paths.filter((path): path is string => Boolean(path)))];
   const signedPairs = await Promise.all(
     uniquePaths.map(async (path) => {
-      const { data, error } = await supabase.storage.from('post-images').createSignedUrl(path, 60 * 60);
+      const { data, error } = await supabase.storage.from(bucket).createSignedUrl(path, 60 * 60);
       if (error || !data?.signedUrl) {
         return [path, undefined] as const;
       }
@@ -306,6 +352,15 @@ async function buildSignedImageUrlMap(paths: Array<string | null | undefined>) {
   );
 
   return new Map<string, string>(signedPairs.filter((pair): pair is readonly [string, string] => Boolean(pair[1])));
+}
+
+async function buildSignedImageUrl(path: string | null | undefined, bucket: string) {
+  if (!path) return null;
+  const { data, error } = await supabase.storage.from(bucket).createSignedUrl(path, 60 * 60);
+  if (error || !data?.signedUrl) {
+    return null;
+  }
+  return data.signedUrl;
 }
 
 function mapReportStatus(status: MyPostRow['status']): MyReportItem['status'] {
@@ -362,16 +417,23 @@ function mapNotificationRow(row: NotificationRow, language: Language): Notificat
 
 function mapConversationRow(row: ConversationRow, language: Language): ChatPreview {
   const name = row.other_display_name || fallbackText[language].unknownUser;
+  const online = isUserOnline(row.other_last_seen_at);
+  const latestPreview =
+    row.latest_message_body?.trim() === IMAGE_MESSAGE_PLACEHOLDER
+      ? IMAGE_PREVIEW_TEXT
+      : row.latest_message_body || fallbackText[language].noMessages;
   return {
     id: row.conversation_id,
     contextPostId: row.context_post_id,
     otherUserId: row.other_user_id,
     name,
-    message: row.latest_message_body || fallbackText[language].noMessages,
+    message: latestPreview,
     time: formatRelativeDate(row.latest_message_created_at || row.last_message_at, language),
     avatarInitial: name.charAt(0).toUpperCase(),
     avatarColor: buildAvatarColor(name),
     unread: (row.unread_count ?? 0) > 0,
+    isOtherUserOnline: online,
+    otherUserLastSeenLabel: row.other_last_seen_at ? formatRelativeDate(row.other_last_seen_at, language) : null,
   };
 }
 
@@ -413,8 +475,150 @@ export async function loadAppData(language: Language): Promise<AppBootstrapData>
   };
 }
 
+export async function loadConversationPreviews(language: Language): Promise<ChatPreview[]> {
+  const result = await supabase.from('conversation_list_view').select('*').order('last_message_at', { ascending: false });
+  assertNoError(result.error);
+  return (result.data ?? []).map((row) => mapConversationRow(row as ConversationRow, language));
+}
+
+export async function touchMyPresence() {
+  const { error } = await supabase.rpc('touch_my_presence');
+  assertNoError(error);
+}
+
+export async function markConversationRead(conversationId: string, currentUserId?: string | null) {
+  const rpcResult = await supabase.rpc('mark_conversation_read', {
+    target_conversation_id: conversationId,
+  });
+
+  if (!rpcResult.error) return;
+
+  const normalizedMessage = rpcResult.error.message.toLowerCase();
+  const missingRpc = normalizedMessage.includes('mark_conversation_read') && normalizedMessage.includes('does not exist');
+  if (!missingRpc) {
+    assertNoError(rpcResult.error);
+    return;
+  }
+
+  let userId = currentUserId ?? null;
+  if (!userId) {
+    const authResult = await supabase.auth.getUser();
+    assertNoError(authResult.error);
+    userId = authResult.data.user?.id ?? null;
+  }
+
+  if (!userId) return;
+
+  const { error } = await supabase
+    .from('conversation_participants')
+    .update({ last_read_at: new Date().toISOString() })
+    .eq('conversation_id', conversationId)
+    .eq('user_id', userId);
+  assertNoError(error);
+}
+
+export async function deleteConversationForCurrentUser(conversationId: string) {
+  const rpcResult = await supabase.rpc('leave_conversation', {
+    target_conversation_id: conversationId,
+  });
+
+  if (!rpcResult.error) return;
+
+  const normalizedMessage = rpcResult.error.message.toLowerCase();
+  const missingRpc = normalizedMessage.includes('leave_conversation') && normalizedMessage.includes('does not exist');
+  if (missingRpc) {
+    throw new Error('Chat delete is not enabled in the database yet. Run the latest Supabase migration first.');
+  }
+
+  assertNoError(rpcResult.error);
+}
+
+async function uploadAvatarImage(userId: string, image: SelectedImage) {
+  const fileName = createAvatarFileName(image);
+  const storagePath = `${userId}/${fileName}`;
+  const arrayBuffer = await readImageArrayBuffer(image.uri);
+
+  const uploadResult = await supabase.storage.from('avatars').upload(storagePath, new Uint8Array(arrayBuffer), {
+    contentType: image.mimeType ?? 'image/jpeg',
+    upsert: false,
+  });
+  assertNoError(uploadResult.error);
+  return storagePath;
+}
+
+export async function loadCurrentUserProfile(userId: string): Promise<CurrentUserProfile> {
+  const profileResult = await supabase
+    .from('profiles')
+    .select('id, display_name, avatar_path')
+    .eq('id', userId)
+    .maybeSingle();
+  assertNoError(profileResult.error);
+
+  const profile = (profileResult.data as ProfileRow | null) ?? null;
+  const avatarPath = profile?.avatar_path ?? null;
+  const avatarUrl = await buildSignedImageUrl(avatarPath, 'avatars');
+  return {
+    displayName: profile?.display_name ?? null,
+    avatarPath,
+    avatarUrl,
+  };
+}
+
+export async function upsertCurrentUserProfile(input: {
+  userId: string;
+  displayName?: string | null;
+  avatarImage?: SelectedImage | null;
+}): Promise<CurrentUserProfile> {
+  const displayName = input.displayName?.trim() ?? '';
+  const profileResult = await supabase
+    .from('profiles')
+    .select('id, display_name, avatar_path')
+    .eq('id', input.userId)
+    .maybeSingle();
+  assertNoError(profileResult.error);
+
+  const existing = (profileResult.data as ProfileRow | null) ?? null;
+  const currentAvatarPath = existing?.avatar_path ?? null;
+  let nextAvatarPath = currentAvatarPath;
+
+  if (input.avatarImage) {
+    nextAvatarPath = await uploadAvatarImage(input.userId, input.avatarImage);
+  }
+
+  const resolvedDisplayName = displayName || existing?.display_name || 'User';
+  if (existing) {
+    const { error } = await supabase
+      .from('profiles')
+      .update({
+        display_name: resolvedDisplayName,
+        avatar_path: nextAvatarPath,
+      })
+      .eq('id', input.userId);
+    assertNoError(error);
+  } else {
+    const { error } = await supabase.from('profiles').insert({
+      id: input.userId,
+      display_name: resolvedDisplayName,
+      avatar_path: nextAvatarPath,
+    });
+    assertNoError(error);
+  }
+
+  if (input.avatarImage && currentAvatarPath && currentAvatarPath !== nextAvatarPath) {
+    await supabase.storage.from('avatars').remove([currentAvatarPath]);
+  }
+
+  const avatarUrl = await buildSignedImageUrl(nextAvatarPath, 'avatars');
+  return {
+    displayName: resolvedDisplayName,
+    avatarPath: nextAvatarPath,
+    avatarUrl,
+  };
+}
+
 export async function createPost(input: CreatePostInput) {
   const postId = generateUuid();
+  const isFoundReport = input.type === 'found';
   const { error } = await supabase.from('posts').insert({
     id: postId,
     user_id: input.userId,
@@ -434,7 +638,8 @@ export async function createPost(input: CreatePostInput) {
     material: input.aiAnalysis?.material && input.aiAnalysis.material !== 'Unknown' ? input.aiAnalysis.material : null,
     notable_features: input.aiAnalysis?.distinctiveFeatures ?? [],
     search_keywords: input.aiAnalysis?.searchKeywords ?? [],
-    is_public: true,
+    // Privacy-first: keep found-item reports internal and out of the public feed.
+    is_public: !isFoundReport,
     is_removed: false,
   });
 
@@ -448,7 +653,12 @@ export async function createPost(input: CreatePostInput) {
 }
 
 export async function updatePostStatus(postId: string, nextStatus: 'active' | 'resolved') {
-  const { error } = await supabase.from('posts').update({ status: nextStatus }).eq('id', postId);
+  const updates: { status: 'active' | 'resolved'; handed_to_owner: boolean } =
+    nextStatus === 'resolved'
+      ? { status: 'resolved', handed_to_owner: true }
+      : { status: 'active', handed_to_owner: false };
+
+  const { error } = await supabase.from('posts').update(updates).eq('id', postId);
   assertNoError(error);
 }
 
@@ -466,19 +676,26 @@ export async function markNotificationRead(notificationId: string) {
 export async function fetchMessages(conversationId: string, currentUserId: string, language: Language): Promise<ChatMessage[]> {
   const { data, error } = await supabase
     .from('messages')
-    .select('id, body, sender_user_id, created_at')
+    .select('id, body, sender_user_id, created_at, type, image_path')
     .eq('conversation_id', conversationId)
     .order('created_at', { ascending: true });
 
   assertNoError(error);
 
+  const imageUrlMap = await buildSignedImageUrlMap(
+    ((data ?? []) as MessageRow[]).map((row) => row.image_path),
+    'message-images'
+  );
+
   return (data ?? []).map((row) => {
     const message = row as MessageRow;
+    const imageUrl = message.image_path ? imageUrlMap.get(message.image_path) ?? undefined : undefined;
     return {
       id: message.id,
       text: message.body,
       time: formatRelativeDate(message.created_at, language),
       mine: message.sender_user_id === currentUserId,
+      image: imageUrl,
     };
   });
 }
@@ -492,6 +709,38 @@ export async function sendMessage(conversationId: string, senderUserId: string, 
   });
 
   assertNoError(error);
+}
+
+export async function sendImageMessage(
+  conversationId: string,
+  senderUserId: string,
+  image: SelectedImage,
+  caption = IMAGE_MESSAGE_PLACEHOLDER
+) {
+  const messageId = generateUuid();
+  const fileName = createMessageImageFileName(image);
+  const storagePath = `${senderUserId}/${conversationId}/${fileName}`;
+  const arrayBuffer = await readImageArrayBuffer(image.uri);
+
+  const uploadResult = await supabase.storage.from('message-images').upload(storagePath, new Uint8Array(arrayBuffer), {
+    contentType: image.mimeType ?? 'image/jpeg',
+    upsert: false,
+  });
+  assertNoError(uploadResult.error);
+
+  const body = caption.trim() || IMAGE_MESSAGE_PLACEHOLDER;
+  const insertResult = await supabase.from('messages').insert({
+    id: messageId,
+    conversation_id: conversationId,
+    sender_user_id: senderUserId,
+    type: 'image',
+    body,
+    image_path: storagePath,
+    image_mime_type: image.mimeType ?? null,
+    image_width: image.width ?? null,
+    image_height: image.height ?? null,
+  });
+  assertNoError(insertResult.error);
 }
 
 export async function findOrCreateConversationForPost(post: HomeFeedItem, currentUserId: string, language: Language) {

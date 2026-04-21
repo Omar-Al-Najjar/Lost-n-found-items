@@ -15,6 +15,7 @@ export type HomeCopy = {
   bags: string;
   documents: string;
   accessories: string;
+  other: string;
   contact: string;
   viewDetails: string;
   locationLabel: string;
@@ -63,6 +64,7 @@ const homeCopy: Record<Language, HomeCopy> = {
     bags: 'Bags',
     documents: 'Documents',
     accessories: 'Accessories',
+    other: 'Other',
     contact: 'Contact owner',
     viewDetails: 'View details',
     locationLabel: 'Location',
@@ -109,6 +111,7 @@ const homeCopy: Record<Language, HomeCopy> = {
     bags: '\u062d\u0642\u0627\u0626\u0628',
     documents: '\u0648\u062b\u0627\u0626\u0642',
     accessories: '\u0645\u0644\u062d\u0642\u0627\u062a',
+    other: '\u0623\u062e\u0631\u0649',
     contact: '\u062a\u0648\u0627\u0635\u0644 \u0645\u0639 \u0627\u0644\u0635\u0627\u062d\u0628',
     viewDetails: '\u0639\u0631\u0636 \u0627\u0644\u062a\u0641\u0627\u0635\u064a\u0644',
     locationLabel: '\u0627\u0644\u0645\u0648\u0642\u0639',

@@ -100,6 +100,7 @@ export function FeedScreen({ copy, palette, isArabic, posts, onOpenSearch, onOpe
             ['bags', copy.bags],
             ['documents', copy.documents],
             ['accessories', copy.accessories],
+            ['other', copy.other],
           ] as const).map(([key, label]) => {
             const active = category === key;
             return (
@@ -168,7 +169,9 @@ export function FeedScreen({ copy, palette, isArabic, posts, onOpenSearch, onOpe
                           ? 'briefcase-outline'
                           : post.category === 'documents'
                             ? 'card-outline'
-                            : 'key-outline'
+                            : post.category === 'accessories'
+                              ? 'key-outline'
+                              : 'help-circle-outline'
                     }
                     size={28}
                     color={isLost ? '#D95C63' : '#6FAE3C'}

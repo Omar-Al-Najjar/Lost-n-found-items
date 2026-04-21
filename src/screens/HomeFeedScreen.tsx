@@ -8,6 +8,17 @@ import { HomeCopy } from '../constants/homeCopy';
 import { HomeFeedItem } from '../data/homeFeed';
 import { Palette } from '../types';
 
+function getReadableChipTextColor(backgroundHex: string) {
+  const hex = backgroundHex.trim().replace('#', '');
+  if (!/^[0-9a-fA-F]{6}$/.test(hex)) return '#102247';
+
+  const red = parseInt(hex.slice(0, 2), 16);
+  const green = parseInt(hex.slice(2, 4), 16);
+  const blue = parseInt(hex.slice(4, 6), 16);
+  const luminance = (0.299 * red + 0.587 * green + 0.114 * blue) / 255;
+  return luminance > 0.58 ? '#102247' : '#F5F1E8';
+}
+
 type HomeFeedScreenProps = {
   copy: HomeCopy;
   palette: Palette;
@@ -30,6 +41,7 @@ export function HomeFeedScreen({
   const [filter, setFilter] = useState<'all' | 'lost' | 'found'>('all');
   const [category, setCategory] = useState<'all' | HomeFeedItem['category']>('all');
   const [query, setQuery] = useState('');
+  const activeCategoryTextColor = getReadableChipTextColor(palette.textPrimary);
 
   const filteredPosts = useMemo(() => {
     return posts.filter((post) => {
@@ -133,6 +145,7 @@ export function HomeFeedScreen({
             ['bags', copy.bags],
             ['documents', copy.documents],
             ['accessories', copy.accessories],
+            ['other', copy.other],
           ] as const).map(([key, label]) => {
             const active = category === key;
             return (
@@ -147,7 +160,7 @@ export function HomeFeedScreen({
                 ]}
                 onPress={() => setCategory(key)}
               >
-                <Text style={[styles.categoryText, { color: active ? palette.accentStrong : palette.textPrimary }]}>
+                <Text style={[styles.categoryText, { color: active ? activeCategoryTextColor : palette.textPrimary }]}>
                   {label}
                 </Text>
               </Pressable>
@@ -203,7 +216,9 @@ export function HomeFeedScreen({
                             ? 'briefcase-outline'
                             : post.category === 'documents'
                               ? 'card-outline'
-                              : 'key-outline'
+                              : post.category === 'accessories'
+                                ? 'key-outline'
+                                : 'help-circle-outline'
                       }
                       size={28}
                       color={isLost ? '#D95C63' : '#6FAE3C'}

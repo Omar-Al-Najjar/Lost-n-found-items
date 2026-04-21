@@ -23,6 +23,7 @@ export type CreatePostCopy = {
   bags: string;
   documents: string;
   accessories: string;
+  other: string;
   imageAllowed: string;
   imageAdded: string;
   imageHint: string;
@@ -72,6 +73,7 @@ const createPostCopy: Record<Language, CreatePostCopy> = {
     bags: 'Bags',
     documents: 'Documents',
     accessories: 'Accessories',
+    other: 'Other',
     imageAllowed: 'Add image',
     imageAdded: 'Image attached',
     imageHint: 'Photos are optional, but adding one can help identify the item faster.',
@@ -119,6 +121,7 @@ const createPostCopy: Record<Language, CreatePostCopy> = {
     bags: '\u062d\u0642\u0627\u0626\u0628',
     documents: '\u0648\u062b\u0627\u0626\u0642',
     accessories: '\u0625\u0643\u0633\u0633\u0648\u0627\u0631\u0627\u062a',
+    other: '\u0623\u062e\u0631\u0649',
     imageAllowed: '\u0625\u0636\u0627\u0641\u0629 \u0635\u0648\u0631\u0629',
     imageAdded: '\u062a\u0645 \u0625\u0631\u0641\u0627\u0642 \u0635\u0648\u0631\u0629',
     imageHint: '\u0627\u0644\u0635\u0648\u0631 \u0627\u062e\u062a\u064a\u0627\u0631\u064a\u0629\u060c \u0648\u0625\u0636\u0627\u0641\u062a\u0647\u0627 \u0642\u062f \u062a\u0633\u0627\u0639\u062f \u0641\u064a \u0627\u0644\u062a\u0639\u0631\u0641 \u0639\u0644\u0649 \u0627\u0644\u0639\u0646\u0635\u0631 \u0628\u0633\u0631\u0639\u0629.',

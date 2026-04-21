@@ -6,9 +6,13 @@ export type AuthCopy = {
   privacyPolicy: string;
   loginTitle: string;
   signupTitle: string;
+  username: string;
   email: string;
   password: string;
   confirmPassword: string;
+  pickProfilePhoto: string;
+  changeProfilePhoto: string;
+  removeProfilePhoto: string;
   forgotPassword: string;
   noAccount: string;
   haveAccount: string;
@@ -24,9 +28,13 @@ const authCopy: Record<Language, AuthCopy> = {
     privacyPolicy: 'Privacy Policy',
     loginTitle: 'Welcome back',
     signupTitle: 'Create your account',
+    username: 'Username',
     email: 'Email',
     password: 'Password',
     confirmPassword: 'Confirm Password',
+    pickProfilePhoto: 'Pick profile photo',
+    changeProfilePhoto: 'Change photo',
+    removeProfilePhoto: 'Remove',
     forgotPassword: 'Forgot password?',
     noAccount: "Don't have an account?",
     haveAccount: 'Already have an account?',
@@ -40,9 +48,13 @@ const authCopy: Record<Language, AuthCopy> = {
     privacyPolicy: '\u0633\u064a\u0627\u0633\u0629 \u0627\u0644\u062e\u0635\u0648\u0635\u064a\u0629',
     loginTitle: '\u0623\u0647\u0644\u064b\u0627 \u0628\u0639\u0648\u062f\u062a\u0643',
     signupTitle: '\u0625\u0646\u0634\u0627\u0621 \u062d\u0633\u0627\u0628 \u062c\u062f\u064a\u062f',
+    username: '\u0627\u0633\u0645 \u0627\u0644\u0645\u0633\u062a\u062e\u062f\u0645',
     email: '\u0627\u0644\u0628\u0631\u064a\u062f \u0627\u0644\u0625\u0644\u0643\u062a\u0631\u0648\u0646\u064a',
     password: '\u0643\u0644\u0645\u0629 \u0627\u0644\u0645\u0631\u0648\u0631',
     confirmPassword: '\u062a\u0623\u0643\u064a\u062f \u0643\u0644\u0645\u0629 \u0627\u0644\u0645\u0631\u0648\u0631',
+    pickProfilePhoto: '\u0627\u062e\u062a\u0631 \u0635\u0648\u0631\u0629 \u0627\u0644\u0645\u0644\u0641',
+    changeProfilePhoto: '\u062a\u063a\u064a\u064a\u0631 \u0627\u0644\u0635\u0648\u0631\u0629',
+    removeProfilePhoto: '\u0625\u0632\u0627\u0644\u0629',
     forgotPassword: '\u0646\u0633\u064a\u062a \u0643\u0644\u0645\u0629 \u0627\u0644\u0645\u0631\u0648\u0631\u061f',
     noAccount: '\u0644\u064a\u0633 \u0644\u062f\u064a\u0643 \u062d\u0633\u0627\u0628\u061f',
     haveAccount: '\u0644\u062f\u064a\u0643 \u062d\u0633\u0627\u0628 \u0628\u0627\u0644\u0641\u0639\u0644\u061f',
