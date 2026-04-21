@@ -14,6 +14,7 @@ export type RouteKey =
   | 'itemDetails'
   | 'reportLost'
   | 'reportFound'
+  | 'foundAiReview'
   | 'profile'
   | 'notifications'
   | 'myReports';
@@ -46,10 +47,76 @@ export type FeedPost = {
   category: 'electronics' | 'bags' | 'documents' | 'accessories';
   time: string;
   contactName: string;
+  image?: SelectedImage | null;
+};
+
+export type AiConfidence = 'high' | 'medium' | 'low';
+
+export type AiFoundAnalysis = {
+  title: string;
+  summary: string;
+  itemType: string;
+  category: FeedPost['category'];
+  brand: string;
+  primaryColor: string;
+  material: string;
+  distinctiveFeatures: string[];
+  searchKeywords: string[];
+  confidence: AiConfidence;
+  reviewHint: string;
+};
+
+export type AiFoundAnalysisDraft = {
+  image: SelectedImage;
+  draftImageStoragePath: string;
+  description: string;
+  location: string;
+  category: FeedPost['category'];
+  analysis: AiFoundAnalysis;
+};
+
+export type AiMatchCandidate = {
+  item: import('./data/homeFeed').HomeFeedItem;
+  score: number;
+  confidence: AiConfidence;
+  reason: string;
+  grouping: 'likely' | 'possible';
+};
+
+export type AiSearchRun = {
+  id: string;
+  query: string;
+  createdAtLabel: string;
+  matches: AiMatchCandidate[];
+};
+
+export type AiHubFoundInsight = {
+  id: string;
+  title: string;
+  summary: string;
+  confidence: AiConfidence;
+  time: string;
+  image?: string;
+};
+
+export type SelectedImage = {
+  uri: string;
+  fileName?: string | null;
+  mimeType?: string | null;
+  width?: number | null;
+  height?: number | null;
+  fileSize?: number | null;
+};
+
+export type AuthCredentials = {
+  email: string;
+  password: string;
 };
 
 export type ChatPreview = {
   id: string;
+  contextPostId?: string | null;
+  otherUserId?: string | null;
   name: string;
   message: string;
   time: string;
@@ -74,7 +141,7 @@ export type NotificationItem = {
   body: string;
   time: string;
   unread: boolean;
-  relatedReportId: string;
+  relatedPostId: string;
 };
 
 export type ReportStatus = 'open' | 'matching' | 'resolved';
@@ -84,6 +151,7 @@ export type MyReportItem = {
   type: 'lost' | 'found';
   title: string;
   description: string;
+  image?: string;
   location: string;
   time: string;
   status: ReportStatus;

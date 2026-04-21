@@ -3,19 +3,30 @@ import React, { useEffect, useRef, useState } from 'react';
 import { Animated, Easing, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import { AmbientBackground } from '../components/AmbientBackground';
-import { ChatPreview, Palette } from '../types';
+import { ChatMessage, ChatPreview, Palette } from '../types';
 
 type DirectMessageScreenProps = {
   t: any;
   palette: Palette;
   isArabic: boolean;
   chat: ChatPreview;
+  messages: ChatMessage[];
+  isSending: boolean;
+  onSendMessage: (text: string) => void;
   onBack: () => void;
 };
 
-export function DirectMessageScreen({ t, palette, isArabic, chat, onBack }: DirectMessageScreenProps) {
+export function DirectMessageScreen({
+  t,
+  palette,
+  isArabic,
+  chat,
+  messages,
+  isSending,
+  onSendMessage,
+  onBack,
+}: DirectMessageScreenProps) {
   const [messageText, setMessageText] = useState('');
-  const [messages, setMessages] = useState(t.detailMessages);
   const listRef = useRef<ScrollView>(null);
   const headerY = useRef(new Animated.Value(-74)).current;
   const composerY = useRef(new Animated.Value(90)).current;
@@ -25,10 +36,6 @@ export function DirectMessageScreen({ t, palette, isArabic, chat, onBack }: Dire
   const rowY = useRef<Animated.Value[]>([]);
   const rowScale = useRef<Animated.Value[]>([]);
   const previousLength = useRef(0);
-
-  useEffect(() => {
-    setMessages(t.detailMessages);
-  }, [t.detailMessages]);
 
   useEffect(() => {
     Animated.parallel([
@@ -88,16 +95,10 @@ export function DirectMessageScreen({ t, palette, isArabic, chat, onBack }: Dire
     previousLength.current = messages.length;
   }, [messages]);
 
-  const formatTime = () =>
-    new Date().toLocaleTimeString(isArabic ? 'ar-SA' : 'en-US', {
-      hour: '2-digit',
-      minute: '2-digit',
-    });
-
   const handleSend = () => {
     const trimmed = messageText.trim();
     if (!trimmed) return;
-    setMessages((prev) => [...prev, { id: `m-${Date.now()}`, text: trimmed, time: formatTime(), mine: true }]);
+    onSendMessage(trimmed);
     setMessageText('');
   };
 
@@ -189,13 +190,14 @@ export function DirectMessageScreen({ t, palette, isArabic, chat, onBack }: Dire
             value={messageText}
             onChangeText={setMessageText}
             onSubmitEditing={handleSend}
+            editable={!isSending}
           />
         </View>
 
         <Pressable
-          style={[styles.roundButton, { backgroundColor: '#c2de7c', opacity: messageText.trim() ? 1 : 0.55 }]}
+          style={[styles.roundButton, { backgroundColor: '#c2de7c', opacity: messageText.trim() && !isSending ? 1 : 0.55 }]}
           onPress={handleSend}
-          disabled={!messageText.trim()}
+          disabled={!messageText.trim() || isSending}
         >
           <Ionicons name="paper-plane-outline" size={26} color={palette.textPrimary} />
         </Pressable>

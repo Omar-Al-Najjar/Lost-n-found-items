@@ -2,7 +2,7 @@ import React from 'react';
 
 import { AuthFormScreen } from '../components/AuthFormScreen';
 import { AuthCopy } from '../constants/authCopy';
-import { Palette } from '../types';
+import { AuthCredentials, Palette } from '../types';
 
 type SignupScreenProps = {
   copy: AuthCopy;
@@ -10,7 +10,7 @@ type SignupScreenProps = {
   isArabic: boolean;
   isDark: boolean;
   onToggleTheme: () => void;
-  onSubmit: () => void;
+  onSubmit: (credentials: AuthCredentials) => void;
   onSwitchToLogin: () => void;
 };
 

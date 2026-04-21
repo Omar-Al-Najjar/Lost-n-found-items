@@ -6,21 +6,39 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { AmbientBackground } from '../components/AmbientBackground';
 import { HomeCopy } from '../constants/homeCopy';
 import { HomeFeedItem } from '../data/homeFeed';
-import { Palette } from '../types';
+import { AiSearchRun, Palette } from '../types';
 
 type SearchScreenProps = {
   copy: HomeCopy;
   palette: Palette;
   isArabic: boolean;
+  aiConfigured: boolean;
+  latestAiSearch: AiSearchRun | null;
   items: HomeFeedItem[];
+  mode?: 'browse' | 'assistant';
   onBack: () => void;
+  onRunAiSearch: (query: string) => Promise<AiSearchRun>;
   onOpenItem: (item: HomeFeedItem) => void;
 };
 
-export function SearchScreen({ copy, palette, isArabic, items, onBack, onOpenItem }: SearchScreenProps) {
-  const [query, setQuery] = useState('');
+export function SearchScreen({
+  copy,
+  palette,
+  isArabic,
+  aiConfigured,
+  latestAiSearch,
+  items,
+  mode = 'browse',
+  onBack,
+  onRunAiSearch,
+  onOpenItem,
+}: SearchScreenProps) {
+  const [query, setQuery] = useState(latestAiSearch?.query ?? '');
   const [filter, setFilter] = useState<'all' | 'lost' | 'found'>('all');
   const [category, setCategory] = useState<'all' | HomeFeedItem['category']>('all');
+  const [isRunningAiSearch, setIsRunningAiSearch] = useState(false);
+
+  const isAssistantMode = mode === 'assistant';
 
   const filteredItems = useMemo(() => {
     return items.filter((item) => {
@@ -39,6 +57,22 @@ export function SearchScreen({ copy, palette, isArabic, items, onBack, onOpenIte
     return 'key-outline';
   };
 
+  const likelyMatches = latestAiSearch?.matches.filter((match) => match.grouping === 'likely') ?? [];
+  const possibleMatches = latestAiSearch?.matches.filter((match) => match.grouping === 'possible') ?? [];
+
+  const handleRunAiSearch = async () => {
+    if (!query.trim() || isRunningAiSearch) {
+      return;
+    }
+
+    try {
+      setIsRunningAiSearch(true);
+      await onRunAiSearch(query.trim());
+    } finally {
+      setIsRunningAiSearch(false);
+    }
+  };
+
   return (
     <SafeAreaView edges={['top']} style={styles.screen}>
       <AmbientBackground primary={palette.accent} secondary={palette.accentSoft} tertiary={palette.danger} />
@@ -50,84 +84,197 @@ export function SearchScreen({ copy, palette, isArabic, items, onBack, onOpenIte
           </Pressable>
           <View style={styles.headerTextWrap}>
             <Text style={[styles.topBarTitle, { color: palette.textPrimary }, isArabic && styles.textRight]}>
-              {copy.searchScreenTitle}
+              {isAssistantMode ? copy.aiHubTitle : copy.searchScreenTitle}
             </Text>
             <Text style={[styles.topBarSubtitle, { color: palette.textSecondary }, isArabic && styles.textRight]}>
-              {copy.searchScreenSubtitle}
+              {isAssistantMode ? copy.aiSearchSubtitle : copy.searchScreenSubtitle}
             </Text>
           </View>
         </View>
       </View>
 
       <ScrollView contentContainerStyle={styles.contentContainer} showsVerticalScrollIndicator={false}>
-        <View style={[styles.searchWrap, { backgroundColor: palette.card, borderColor: palette.border }]}>
-          <Ionicons name="search-outline" size={20} color={palette.textSecondary} />
+        <View
+          style={[
+            styles.searchWrap,
+            isAssistantMode && styles.aiSearchWrap,
+            { backgroundColor: palette.card, borderColor: palette.border },
+          ]}
+        >
+          <Ionicons
+            name={isAssistantMode ? 'sparkles-outline' : 'search-outline'}
+            size={20}
+            color={isAssistantMode ? palette.accent : palette.textSecondary}
+          />
           <TextInput
             value={query}
             onChangeText={setQuery}
-            placeholder={copy.searchPlaceholder}
+            placeholder={isAssistantMode ? copy.aiSearchTitle : copy.searchPlaceholder}
             placeholderTextColor={palette.textSecondary}
             style={[styles.searchInput, { color: palette.textPrimary, textAlign: isArabic ? 'right' : 'left' }]}
+            autoFocus={isAssistantMode}
+            multiline={isAssistantMode}
           />
         </View>
 
-        <View style={[styles.filterRow, isArabic && styles.rowReverse]}>
-          {([
-            ['all', copy.all],
-            ['lost', copy.lost],
-            ['found', copy.found],
-          ] as const).map(([key, label]) => {
-            const active = filter === key;
-            return (
-              <Pressable
-                key={key}
-                style={[
-                  styles.filterChip,
-                  {
-                    backgroundColor: active ? palette.accent : palette.card,
-                    borderColor: active ? palette.accent : palette.border,
-                  },
-                ]}
-                onPress={() => setFilter(key)}
-              >
-                <Text style={[styles.filterChipText, { color: active ? '#102247' : palette.textPrimary }]}>
-                  {label}
-                </Text>
-              </Pressable>
-            );
-          })}
+        <View style={[styles.aiCard, { backgroundColor: palette.card, borderColor: palette.border }]}>
+          <View style={[styles.aiHeader, isArabic && styles.rowReverse]}>
+            <View style={[styles.aiIconWrap, { backgroundColor: palette.cardMuted }]}>
+              <Ionicons name="sparkles-outline" size={18} color={palette.accent} />
+            </View>
+            <View style={styles.aiCopy}>
+              <Text style={[styles.aiTitle, { color: palette.textPrimary }, isArabic && styles.textRight]}>{copy.aiSearchTitle}</Text>
+              <Text style={[styles.aiSubtitle, { color: palette.textSecondary }, isArabic && styles.textRight]}>
+                {aiConfigured ? copy.aiSearchSubtitle : copy.aiSearchEmpty}
+              </Text>
+            </View>
+          </View>
+          <Pressable
+            style={[styles.aiButton, { backgroundColor: palette.accent, opacity: query.trim() ? 1 : 0.45 }]}
+            onPress={handleRunAiSearch}
+            disabled={!query.trim() || isRunningAiSearch}
+          >
+            <Text style={styles.aiButtonText}>
+              {isRunningAiSearch ? (isArabic ? 'جارٍ البحث...' : 'Searching...') : copy.aiSearchAction}
+            </Text>
+          </Pressable>
         </View>
 
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.categoryRow}>
-          {([
-            ['all', copy.all],
-            ['electronics', copy.electronics],
-            ['bags', copy.bags],
-            ['documents', copy.documents],
-            ['accessories', copy.accessories],
-          ] as const).map(([key, label]) => {
-            const active = category === key;
-            return (
-              <Pressable
-                key={key}
-                style={[
-                  styles.categoryChip,
-                  {
-                    backgroundColor: active ? palette.textPrimary : palette.card,
-                    borderColor: active ? palette.textPrimary : palette.border,
-                  },
-                ]}
-                onPress={() => setCategory(key)}
-              >
-                <Text style={[styles.categoryText, { color: active ? palette.accentStrong : palette.textPrimary }]}>
-                  {label}
-                </Text>
-              </Pressable>
-            );
-          })}
-        </ScrollView>
+        {!isAssistantMode ? (
+          <>
+            <View style={[styles.filterRow, isArabic && styles.rowReverse]}>
+              {([
+                ['all', copy.all],
+                ['lost', copy.lost],
+                ['found', copy.found],
+              ] as const).map(([key, label]) => {
+                const active = filter === key;
+                return (
+                  <Pressable
+                    key={key}
+                    style={[
+                      styles.filterChip,
+                      {
+                        backgroundColor: active ? palette.accent : palette.card,
+                        borderColor: active ? palette.accent : palette.border,
+                      },
+                    ]}
+                    onPress={() => setFilter(key)}
+                  >
+                    <Text style={[styles.filterChipText, { color: active ? '#102247' : palette.textPrimary }]}>
+                      {label}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </View>
 
-        {filteredItems.length === 0 ? (
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.categoryRow}>
+              {([
+                ['all', copy.all],
+                ['electronics', copy.electronics],
+                ['bags', copy.bags],
+                ['documents', copy.documents],
+                ['accessories', copy.accessories],
+              ] as const).map(([key, label]) => {
+                const active = category === key;
+                return (
+                  <Pressable
+                    key={key}
+                    style={[
+                      styles.categoryChip,
+                      {
+                        backgroundColor: active ? palette.textPrimary : palette.card,
+                        borderColor: active ? palette.textPrimary : palette.border,
+                      },
+                    ]}
+                    onPress={() => setCategory(key)}
+                  >
+                    <Text style={[styles.categoryText, { color: active ? palette.accentStrong : palette.textPrimary }]}>
+                      {label}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </ScrollView>
+          </>
+        ) : null}
+
+        {latestAiSearch ? (
+          <View style={styles.aiResultsWrap}>
+            {likelyMatches.length > 0 ? (
+              <>
+                <Text style={[styles.aiSectionTitle, { color: palette.textPrimary }, isArabic && styles.textRight]}>
+                  {copy.aiSearchLikely}
+                </Text>
+                {likelyMatches.map((match) => (
+                  <Pressable
+                    key={`likely-${match.item.id}`}
+                    style={[styles.aiMatchCard, { backgroundColor: '#F3FBEA', borderColor: '#B9DB94' }]}
+                    onPress={() => onOpenItem(match.item)}
+                  >
+                    <View style={[styles.aiMatchHeader, isArabic && styles.rowReverse]}>
+                      <Text style={[styles.aiMatchTitle, { color: '#33591B' }, isArabic && styles.textRight]}>{match.item.title}</Text>
+                      <View style={styles.scoreBadge}>
+                        <Text style={styles.scoreBadgeText}>{Math.round(match.score * 100)}%</Text>
+                      </View>
+                    </View>
+                    <Text style={[styles.aiMatchMeta, { color: '#33591B' }, isArabic && styles.textRight]}>
+                      {match.item.contactName} · {match.item.location}
+                    </Text>
+                    <Text style={[styles.aiReasonLabel, { color: '#33591B' }, isArabic && styles.textRight]}>
+                      {copy.aiSearchReasonLabel}
+                    </Text>
+                    <Text style={[styles.aiReasonText, { color: '#33591B' }, isArabic && styles.textRight]}>{match.reason}</Text>
+                  </Pressable>
+                ))}
+              </>
+            ) : null}
+
+            {possibleMatches.length > 0 ? (
+              <>
+                <Text style={[styles.aiSectionTitle, { color: palette.textPrimary }, isArabic && styles.textRight]}>
+                  {copy.aiSearchPossible}
+                </Text>
+                {possibleMatches.map((match) => (
+                  <Pressable
+                    key={`possible-${match.item.id}`}
+                    style={[styles.aiMatchCard, { backgroundColor: palette.card, borderColor: palette.border }]}
+                    onPress={() => onOpenItem(match.item)}
+                  >
+                    <View style={[styles.aiMatchHeader, isArabic && styles.rowReverse]}>
+                      <Text style={[styles.aiMatchTitle, { color: palette.textPrimary }, isArabic && styles.textRight]}>{match.item.title}</Text>
+                      <View style={[styles.scoreBadge, { backgroundColor: palette.surfaceAlt }]}>
+                        <Text style={[styles.scoreBadgeText, { color: palette.textPrimary }]}>{Math.round(match.score * 100)}%</Text>
+                      </View>
+                    </View>
+                    <Text style={[styles.aiMatchMeta, { color: palette.textSecondary }, isArabic && styles.textRight]}>
+                      {match.item.contactName} · {match.item.location}
+                    </Text>
+                    <Text style={[styles.aiReasonLabel, { color: palette.textPrimary }, isArabic && styles.textRight]}>
+                      {copy.aiSearchReasonLabel}
+                    </Text>
+                    <Text style={[styles.aiReasonText, { color: palette.textSecondary }, isArabic && styles.textRight]}>{match.reason}</Text>
+                  </Pressable>
+                ))}
+              </>
+            ) : null}
+
+            {likelyMatches.length === 0 && possibleMatches.length === 0 ? (
+              <View style={[styles.emptyCard, { backgroundColor: palette.card, borderColor: palette.border }]}>
+                <Ionicons name="sparkles-outline" size={26} color={palette.textSecondary} />
+                <Text style={[styles.emptyTitle, { color: palette.textPrimary }, isArabic && styles.textRight]}>
+                  {copy.aiSearchLikely}
+                </Text>
+                <Text style={[styles.emptyDescription, { color: palette.textSecondary }, isArabic && styles.textRight]}>
+                  {copy.aiSearchEmpty}
+                </Text>
+              </View>
+            ) : null}
+          </View>
+        ) : null}
+
+        {!isAssistantMode && filteredItems.length === 0 ? (
           <View style={[styles.emptyCard, { backgroundColor: palette.card, borderColor: palette.border }]}>
             <Ionicons name="search-outline" size={26} color={palette.textSecondary} />
             <Text style={[styles.emptyTitle, { color: palette.textPrimary }, isArabic && styles.textRight]}>
@@ -137,67 +284,69 @@ export function SearchScreen({ copy, palette, isArabic, items, onBack, onOpenIte
               {copy.emptyDescription}
             </Text>
           </View>
-        ) : (
-          filteredItems.map((item) => {
-            const isLost = item.type === 'lost';
-            return (
-              <Pressable
-                key={item.id}
-                style={[styles.card, { backgroundColor: palette.card, borderColor: palette.border }]}
-                onPress={() => onOpenItem(item)}
-              >
-                <View style={[styles.cardHeader, isArabic && styles.rowReverse]}>
-                  <View
-                    style={[
-                      styles.typeBadge,
-                      { backgroundColor: isLost ? '#F8DCDD' : '#E9F5D8' },
-                    ]}
-                  >
-                    <Text style={[styles.typeBadgeText, { color: isLost ? '#A44B54' : '#4B6B20' }]}>
-                      {isLost ? copy.lost : copy.found}
-                    </Text>
-                  </View>
-                  <Text style={[styles.dateText, { color: palette.textSecondary }]}>{item.time}</Text>
-                </View>
+        ) : null}
 
-                {isLost && (
-                  <View style={[styles.imagePlaceholder, { backgroundColor: '#FCECEE' }]}>
-                    <Ionicons name={getCategoryIcon(item)} size={28} color="#D95C63" />
-                    <Text style={styles.imageLabel}>{copy.imageLabel}</Text>
+        {!isAssistantMode
+          ? filteredItems.map((item) => {
+              const isLost = item.type === 'lost';
+              return (
+                <Pressable
+                  key={item.id}
+                  style={[styles.card, { backgroundColor: palette.card, borderColor: palette.border }]}
+                  onPress={() => onOpenItem(item)}
+                >
+                  <View style={[styles.cardHeader, isArabic && styles.rowReverse]}>
+                    <View
+                      style={[
+                        styles.typeBadge,
+                        { backgroundColor: isLost ? '#F8DCDD' : '#E9F5D8' },
+                      ]}
+                    >
+                      <Text style={[styles.typeBadgeText, { color: isLost ? '#A44B54' : '#4B6B20' }]}>
+                        {isLost ? copy.lost : copy.found}
+                      </Text>
+                    </View>
+                    <Text style={[styles.dateText, { color: palette.textSecondary }]}>{item.time}</Text>
                   </View>
-                )}
 
-                <Text style={[styles.cardTitle, { color: palette.textPrimary }, isArabic && styles.textRight]}>
-                  {item.title}
-                </Text>
+                  {isLost ? (
+                    <View style={[styles.imagePlaceholder, { backgroundColor: '#FCECEE' }]}>
+                      <Ionicons name={getCategoryIcon(item)} size={28} color="#D95C63" />
+                      <Text style={styles.imageLabel}>{copy.imageLabel}</Text>
+                    </View>
+                  ) : null}
 
-                <View style={[styles.metaRow, isArabic && styles.rowReverse]}>
-                  <View style={[styles.metaItem, isArabic && styles.rowReverse]}>
-                    <Ionicons name="location-outline" size={16} color={palette.textSecondary} />
-                    <Text style={[styles.metaText, { color: palette.textSecondary }]}>{item.location}</Text>
-                  </View>
-                  <View style={[styles.metaItem, isArabic && styles.rowReverse]}>
-                    <Ionicons name="calendar-outline" size={16} color={palette.textSecondary} />
-                    <Text style={[styles.metaText, { color: palette.textSecondary }]}>{item.time}</Text>
-                  </View>
-                </View>
-
-                <View style={[styles.cardFooter, isArabic && styles.rowReverse]}>
-                  <Text style={[styles.categoryHint, { color: palette.textSecondary }]}>
-                    {item.category === 'electronics'
-                      ? copy.electronics
-                      : item.category === 'bags'
-                        ? copy.bags
-                        : item.category === 'documents'
-                          ? copy.documents
-                          : copy.accessories}
+                  <Text style={[styles.cardTitle, { color: palette.textPrimary }, isArabic && styles.textRight]}>
+                    {item.title}
                   </Text>
-                  <Text style={[styles.detailsLink, { color: palette.accentSoft }]}>{copy.viewDetails}</Text>
-                </View>
-              </Pressable>
-            );
-          })
-        )}
+
+                  <View style={[styles.metaRow, isArabic && styles.rowReverse]}>
+                    <View style={[styles.metaItem, isArabic && styles.rowReverse]}>
+                      <Ionicons name="location-outline" size={16} color={palette.textSecondary} />
+                      <Text style={[styles.metaText, { color: palette.textSecondary }]}>{item.location}</Text>
+                    </View>
+                    <View style={[styles.metaItem, isArabic && styles.rowReverse]}>
+                      <Ionicons name="calendar-outline" size={16} color={palette.textSecondary} />
+                      <Text style={[styles.metaText, { color: palette.textSecondary }]}>{item.time}</Text>
+                    </View>
+                  </View>
+
+                  <View style={[styles.cardFooter, isArabic && styles.rowReverse]}>
+                    <Text style={[styles.categoryHint, { color: palette.textSecondary }]}>
+                      {item.category === 'electronics'
+                        ? copy.electronics
+                        : item.category === 'bags'
+                          ? copy.bags
+                          : item.category === 'documents'
+                            ? copy.documents
+                            : copy.accessories}
+                    </Text>
+                    <Text style={[styles.detailsLink, { color: palette.accentSoft }]}>{copy.viewDetails}</Text>
+                  </View>
+                </Pressable>
+              );
+            })
+          : null}
 
         <View style={{ height: 140 }} />
       </ScrollView>
@@ -257,9 +406,56 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 10,
   },
+  aiSearchWrap: {
+    minHeight: 112,
+    alignItems: 'flex-start',
+    paddingVertical: 14,
+  },
   searchInput: {
     flex: 1,
     fontSize: 15,
+  },
+  aiCard: {
+    borderWidth: 1,
+    borderRadius: 22,
+    padding: 14,
+    gap: 12,
+  },
+  aiHeader: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 10,
+  },
+  aiIconWrap: {
+    width: 38,
+    height: 38,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  aiCopy: {
+    flex: 1,
+  },
+  aiTitle: {
+    fontSize: 17,
+    fontWeight: '800',
+  },
+  aiSubtitle: {
+    marginTop: 4,
+    fontSize: 13,
+    lineHeight: 19,
+  },
+  aiButton: {
+    minHeight: 48,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 16,
+  },
+  aiButtonText: {
+    color: '#102247',
+    fontSize: 14,
+    fontWeight: '800',
   },
   filterRow: {
     flexDirection: 'row',
@@ -288,6 +484,56 @@ const styles = StyleSheet.create({
   categoryText: {
     fontSize: 13,
     fontWeight: '700',
+  },
+  aiResultsWrap: {
+    gap: 10,
+  },
+  aiSectionTitle: {
+    fontSize: 17,
+    fontWeight: '800',
+    marginTop: 4,
+  },
+  aiMatchCard: {
+    borderWidth: 1,
+    borderRadius: 22,
+    padding: 14,
+    gap: 8,
+  },
+  aiMatchHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 8,
+  },
+  aiMatchTitle: {
+    flex: 1,
+    fontSize: 17,
+    fontWeight: '800',
+  },
+  aiMatchMeta: {
+    fontSize: 12,
+  },
+  aiReasonLabel: {
+    fontSize: 12,
+    fontWeight: '800',
+  },
+  aiReasonText: {
+    fontSize: 13,
+    lineHeight: 20,
+  },
+  scoreBadge: {
+    minWidth: 56,
+    borderRadius: 999,
+    backgroundColor: '#D8EDC2',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+  },
+  scoreBadgeText: {
+    color: '#33591B',
+    fontSize: 12,
+    fontWeight: '800',
   },
   card: {
     borderWidth: 1,

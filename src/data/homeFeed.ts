@@ -2,8 +2,10 @@ import { Language } from '../types';
 
 type HomeFeedItemBase = {
   id: string;
+  userId?: string;
   title: string;
   description: string;
+  image?: string;
   location: string;
   time: string;
   contactName: string;
@@ -14,7 +16,6 @@ type HomeFeedItemBase = {
 export type HomeFeedItem =
   | (HomeFeedItemBase & {
       type: 'lost';
-      image?: string;
     })
   | (HomeFeedItemBase & {
       type: 'found';

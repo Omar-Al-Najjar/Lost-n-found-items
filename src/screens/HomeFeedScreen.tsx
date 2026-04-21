@@ -1,6 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import React, { useMemo, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Image, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { AmbientBackground } from '../components/AmbientBackground';
@@ -13,11 +13,20 @@ type HomeFeedScreenProps = {
   palette: Palette;
   isArabic: boolean;
   posts: HomeFeedItem[];
+  currentUserId: string | null;
   onOpenSearch: () => void;
   onOpenConversation: (post: HomeFeedItem) => void;
 };
 
-export function HomeFeedScreen({ copy, palette, isArabic, posts, onOpenSearch, onOpenConversation }: HomeFeedScreenProps) {
+export function HomeFeedScreen({
+  copy,
+  palette,
+  isArabic,
+  posts,
+  currentUserId,
+  onOpenSearch,
+  onOpenConversation,
+}: HomeFeedScreenProps) {
   const [filter, setFilter] = useState<'all' | 'lost' | 'found'>('all');
   const [category, setCategory] = useState<'all' | HomeFeedItem['category']>('all');
   const [query, setQuery] = useState('');
@@ -159,6 +168,7 @@ export function HomeFeedScreen({ copy, palette, isArabic, posts, onOpenSearch, o
         ) : (
           filteredPosts.map((post) => {
             const isLost = post.type === 'lost';
+            const isOwnPost = Boolean(currentUserId && post.userId === currentUserId);
             const cardBackground = isLost ? '#FFF1F2' : '#F3FBEA';
             const cardBorder = isLost ? '#F3A5AC' : '#B9DB94';
             const cardText = isLost ? '#7A1F26' : '#33591B';
@@ -181,22 +191,26 @@ export function HomeFeedScreen({ copy, palette, isArabic, posts, onOpenSearch, o
                   <Text style={[styles.time, { color: cardText }]}>{post.time}</Text>
                 </View>
 
-                <View style={[styles.imagePlaceholder, { backgroundColor: isLost ? '#FAD2D5' : '#DDEFCB' }]}>
-                  <Ionicons
-                    name={
-                      post.category === 'electronics'
-                        ? 'phone-portrait-outline'
-                        : post.category === 'bags'
-                          ? 'briefcase-outline'
-                          : post.category === 'documents'
-                            ? 'card-outline'
-                            : 'key-outline'
-                    }
-                    size={28}
-                    color={isLost ? '#D95C63' : '#6FAE3C'}
-                  />
-                  <Text style={[styles.imageLabel, { color: cardText }]}>{copy.recent}</Text>
-                </View>
+                {post.image ? (
+                  <Image source={{ uri: post.image }} style={styles.postImage} resizeMode="cover" />
+                ) : (
+                  <View style={[styles.imagePlaceholder, { backgroundColor: isLost ? '#FAD2D5' : '#DDEFCB' }]}>
+                    <Ionicons
+                      name={
+                        post.category === 'electronics'
+                          ? 'phone-portrait-outline'
+                          : post.category === 'bags'
+                            ? 'briefcase-outline'
+                            : post.category === 'documents'
+                              ? 'card-outline'
+                              : 'key-outline'
+                      }
+                      size={28}
+                      color={isLost ? '#D95C63' : '#6FAE3C'}
+                    />
+                    <Text style={[styles.imageLabel, { color: cardText }]}>{copy.recent}</Text>
+                  </View>
+                )}
 
                 <Text style={[styles.cardTitle, { color: cardText }, isArabic && styles.textRight]}>{post.title}</Text>
                 <Text style={[styles.cardText, { color: cardText }, isArabic && styles.textRight]}>{post.description}</Text>
@@ -212,7 +226,11 @@ export function HomeFeedScreen({ copy, palette, isArabic, posts, onOpenSearch, o
                   </View>
                 </View>
 
-                <Pressable style={[styles.ctaButton, { backgroundColor: buttonColor }]} onPress={() => onOpenConversation(post)}>
+                <Pressable
+                  style={[styles.ctaButton, { backgroundColor: buttonColor, opacity: isOwnPost ? 0.45 : 1 }]}
+                  onPress={() => onOpenConversation(post)}
+                  disabled={isOwnPost}
+                >
                   <Text style={styles.ctaText}>{copy.contact}</Text>
                 </Pressable>
               </View>
@@ -413,6 +431,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
+  },
+  postImage: {
+    width: '100%',
+    height: 160,
+    borderRadius: 20,
   },
   imageLabel: {
     fontSize: 12,

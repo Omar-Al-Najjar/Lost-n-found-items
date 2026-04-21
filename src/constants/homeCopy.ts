@@ -29,6 +29,22 @@ export type HomeCopy = {
   recent: string;
   emptyTitle: string;
   emptyDescription: string;
+  aiHubTitle: string;
+  aiHubSubtitle: string;
+  aiHubPrimaryAction: string;
+  aiHubSecondaryAction: string;
+  aiHubRecentFound: string;
+  aiHubRecentSearches: string;
+  aiHubLikelyMatches: string;
+  aiHubEmpty: string;
+  aiSearchTitle: string;
+  aiSearchSubtitle: string;
+  aiSearchAction: string;
+  aiSearchLikely: string;
+  aiSearchPossible: string;
+  aiSearchReasonLabel: string;
+  aiSearchEmpty: string;
+  aiSearchUnavailable: string;
 };
 
 const homeCopy: Record<Language, HomeCopy> = {
@@ -61,6 +77,22 @@ const homeCopy: Record<Language, HomeCopy> = {
     recent: 'Recent',
     emptyTitle: 'No matching reports',
     emptyDescription: 'Try another search word or switch your filters.',
+    aiHubTitle: 'Match Assistant',
+    aiHubSubtitle: 'Review analyzed found items, recent searches, and possible owner matches.',
+    aiHubPrimaryAction: 'Analyze found item',
+    aiHubSecondaryAction: 'Search for lost item',
+    aiHubRecentFound: 'Recent found-item analyses',
+    aiHubRecentSearches: 'Recent lost-item searches',
+    aiHubLikelyMatches: 'Likely matches',
+    aiHubEmpty: 'No AI activity yet. Start by analyzing a found item or describing what you lost.',
+    aiSearchTitle: 'Describe what you lost',
+    aiSearchSubtitle: 'The assistant will compare your description with found-item reports and highlight the people most likely to have it.',
+    aiSearchAction: 'Find possible matches',
+    aiSearchLikely: 'Likely matches',
+    aiSearchPossible: 'Other possible matches',
+    aiSearchReasonLabel: 'Why this might match',
+    aiSearchEmpty: 'No strong matches yet. Try a clearer description or add more distinctive details.',
+    aiSearchUnavailable: 'AI search is unavailable right now. Add your API key to enable live matching.',
   },
   ar: {
     appName: '\u0627\u0644\u0645\u0641\u0642\u0648\u062f\u0627\u062a \u0648\u0627\u0644\u0645\u0648\u062c\u0648\u062f\u0627\u062a',
@@ -91,6 +123,22 @@ const homeCopy: Record<Language, HomeCopy> = {
     recent: '\u062d\u062f\u064a\u062b',
     emptyTitle: '\u0644\u0627 \u062a\u0648\u062c\u062f \u0628\u0644\u0627\u063a\u0627\u062a \u0645\u0637\u0627\u0628\u0642\u0629',
     emptyDescription: '\u062c\u0631\u0628 \u0643\u0644\u0645\u0629 \u0628\u062d\u062b \u0623\u062e\u0631\u0649 \u0623\u0648 \u063a\u064a\u0631 \u0627\u0644\u0641\u0644\u0627\u062a\u0631.',
+    aiHubTitle: '\u0645\u0633\u0627\u0639\u062f \u0627\u0644\u0645\u0637\u0627\u0628\u0642\u0627\u062a',
+    aiHubSubtitle: '\u0631\u0627\u062c\u0639 \u0627\u0644\u0639\u0646\u0627\u0635\u0631 \u0627\u0644\u0645\u062d\u0644\u0644\u0629\u060c \u0648\u0627\u0644\u0628\u062d\u0648\u062b \u0627\u0644\u0623\u062e\u064a\u0631\u0629\u060c \u0648\u0627\u0644\u0645\u0637\u0627\u0628\u0642\u0627\u062a \u0627\u0644\u0645\u062d\u062a\u0645\u0644\u0629.',
+    aiHubPrimaryAction: '\u062d\u0644\u0644 \u0639\u0646\u0635\u0631\u064b\u0627 \u0645\u0639\u062b\u0648\u0631\u064b\u0627 \u0639\u0644\u064a\u0647',
+    aiHubSecondaryAction: '\u0627\u0628\u062d\u062b \u0639\u0646 \u0639\u0646\u0635\u0631 \u0645\u0641\u0642\u0648\u062f',
+    aiHubRecentFound: '\u0622\u062e\u0631 \u0627\u0644\u0639\u0646\u0627\u0635\u0631 \u0627\u0644\u0645\u062d\u0644\u0644\u0629',
+    aiHubRecentSearches: '\u0622\u062e\u0631 \u0639\u0645\u0644\u064a\u0627\u062a \u0628\u062d\u062b \u0639\u0646 \u0645\u0641\u0642\u0648\u062f',
+    aiHubLikelyMatches: '\u0627\u0644\u0645\u0637\u0627\u0628\u0642\u0627\u062a \u0627\u0644\u0623\u0642\u0631\u0628',
+    aiHubEmpty: '\u0644\u0627 \u064a\u0648\u062c\u062f \u0646\u0634\u0627\u0637 \u0630\u0643\u064a \u0628\u0639\u062f. \u0627\u0628\u062f\u0623 \u0628\u062a\u062d\u0644\u064a\u0644 \u0639\u0646\u0635\u0631 \u0645\u0639\u062b\u0648\u0631 \u0639\u0644\u064a\u0647 \u0623\u0648 \u0627\u0643\u062a\u0628 \u0648\u0635\u0641 \u0645\u0627 \u0641\u0642\u062f\u062a\u0647.',
+    aiSearchTitle: '\u0635\u0641 \u0645\u0627 \u0641\u0642\u062f\u062a\u0647 \u0628\u0643\u0644\u0645\u0627\u062a\u0643',
+    aiSearchSubtitle: '\u0633\u064a\u0642\u0627\u0631\u0646 \u0627\u0644\u0645\u0633\u0627\u0639\u062f \u0648\u0635\u0641\u0643 \u0645\u0639 \u0628\u0644\u0627\u063a\u0627\u062a \u0627\u0644\u0639\u0646\u0627\u0635\u0631 \u0627\u0644\u0645\u0639\u062b\u0648\u0631 \u0639\u0644\u064a\u0647\u0627 \u0648\u064a\u0631\u0634\u062d \u0627\u0644\u0623\u0634\u062e\u0627\u0635 \u0627\u0644\u0623\u0642\u0631\u0628 \u0644\u0627\u0645\u062a\u0644\u0627\u0643\u0647\u0627.',
+    aiSearchAction: '\u0627\u0639\u062b\u0631 \u0639\u0644\u0649 \u0645\u0637\u0627\u0628\u0642\u0627\u062a \u0645\u062d\u062a\u0645\u0644\u0629',
+    aiSearchLikely: '\u0645\u0637\u0627\u0628\u0642\u0627\u062a \u0631\u0627\u062c\u062d\u0629',
+    aiSearchPossible: '\u0645\u0637\u0627\u0628\u0642\u0627\u062a \u0645\u062d\u062a\u0645\u0644\u0629 \u0623\u062e\u0631\u0649',
+    aiSearchReasonLabel: '\u0633\u0628\u0628 \u0627\u0644\u0645\u0637\u0627\u0628\u0642\u0629',
+    aiSearchEmpty: '\u0644\u0627 \u062a\u0648\u062c\u062f \u0645\u0637\u0627\u0628\u0642\u0627\u062a \u0642\u0648\u064a\u0629 \u0628\u0639\u062f. \u062c\u0631\u0628 \u0648\u0635\u0641\u064b\u0627 \u0623\u0648\u0636\u062d \u0623\u0648 \u0623\u0636\u0641 \u062a\u0641\u0627\u0635\u064a\u0644 \u0645\u0645\u064a\u0632\u0629.',
+    aiSearchUnavailable: '\u0628\u062d\u062b \u0627\u0644\u0645\u0633\u0627\u0639\u062f \u063a\u064a\u0631 \u0645\u062a\u0627\u062d \u062d\u0627\u0644\u064a\u064b\u0627. \u0623\u0636\u0641 \u0645\u0641\u062a\u0627\u062d API \u0644\u062a\u0641\u0639\u064a\u0644 \u0627\u0644\u0645\u0637\u0627\u0628\u0642\u0629 \u0627\u0644\u062d\u064a\u0629.',
   },
 };
 

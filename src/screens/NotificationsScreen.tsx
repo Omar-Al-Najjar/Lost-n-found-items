@@ -14,7 +14,7 @@ type NotificationsScreenProps = {
   notifications: NotificationItem[];
   onBack: () => void;
   onMarkAllRead: () => void;
-  onOpenReport: (reportId: string, notificationId: string) => void;
+  onOpenReport: (postId: string, notificationId: string) => void;
 };
 
 export function NotificationsScreen({
@@ -174,7 +174,7 @@ export function NotificationsScreen({
                   <Text style={[styles.timeText, { color: palette.textSecondary }]}>{item.time}</Text>
                   <Pressable
                     style={[styles.openButton, { backgroundColor: palette.accent }]}
-                    onPress={() => onOpenReport(item.relatedReportId, item.id)}
+                    onPress={() => onOpenReport(item.relatedPostId, item.id)}
                   >
                     <Text style={styles.openButtonText}>{copy.notificationOpenReport}</Text>
                   </Pressable>

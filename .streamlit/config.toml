@@ -1,0 +1,5 @@
+[server]
+# Disable the source watcher to avoid Streamlit probing torch/transformers
+# module internals such as torch.classes.__path__, which triggers noisy
+# RuntimeErrors during sentence-transformers startup.
+fileWatcherType = "none"

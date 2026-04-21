@@ -12,6 +12,8 @@ type ProfileScreenProps = {
   copy: AccountCopy;
   palette: Palette;
   isArabic: boolean;
+  userDisplayName: string;
+  userEmail: string;
   darkEnabled: boolean;
   setDarkEnabled: (value: boolean) => void;
   setThemeMode: (mode: ThemeMode) => void;
@@ -30,6 +32,8 @@ export function ProfileScreen({
   copy,
   palette,
   isArabic,
+  userDisplayName,
+  userEmail,
   darkEnabled,
   setDarkEnabled,
   setThemeMode,
@@ -296,7 +300,7 @@ export function ProfileScreen({
           ]}
         >
           <Text style={[styles.heroEyebrow, { color: heroEyebrowColor }]}>{t.profile}</Text>
-          <Text style={[styles.heroTitle, { color: heroTitleColor }]}>{t.fullName}</Text>
+          <Text style={[styles.heroTitle, { color: heroTitleColor }]}>{userDisplayName}</Text>
           <Text style={[styles.heroSubtitle, { color: heroSubtitleColor }]}>{copy.shortcutsTitle}</Text>
         </Animated.View>
 
@@ -325,13 +329,15 @@ export function ProfileScreen({
             <Animated.View style={{ transform: [{ scale: avatarScale }, { rotate: avatarRotateDeg }] }}>
               <View style={[styles.avatar, { backgroundColor: palette.accentSoft }]}>
                 <View style={styles.avatarOverlay} />
-                <Text style={[styles.avatarText, { color: palette.accentStrong }]}>{isArabic ? '\u0639' : 'A'}</Text>
+                <Text style={[styles.avatarText, { color: palette.accentStrong }]}>
+                  {userDisplayName.charAt(0).toUpperCase()}
+                </Text>
               </View>
             </Animated.View>
 
             <View style={styles.centerTextWrap}>
-              <Text style={[styles.profileName, { color: palette.textPrimary }]}>{t.fullName}</Text>
-              <Text style={[styles.profileMeta, { color: palette.textSecondary }]}>{t.emailValue}</Text>
+              <Text style={[styles.profileName, { color: palette.textPrimary }]}>{userDisplayName}</Text>
+              <Text style={[styles.profileMeta, { color: palette.textSecondary }]}>{userEmail}</Text>
             </View>
           </View>
         </Animated.View>

@@ -9,9 +9,9 @@ type ReportFoundItemScreenProps = {
   palette: Palette;
   isArabic: boolean;
   onBack: () => void;
-  onSubmitPost: (post: FeedPost) => void;
+  onAnalyzePost: (post: FeedPost) => void;
 };
 
 export function ReportFoundItemScreen(props: ReportFoundItemScreenProps) {
-  return <ReportItemForm {...props} variant="found" />;
+  return <ReportItemForm {...props} variant="found" requireImage submitLabel={props.copy.analyzeFound} onSubmitPost={props.onAnalyzePost} />;
 }

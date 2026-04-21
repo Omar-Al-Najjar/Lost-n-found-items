@@ -14,7 +14,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { AuthCopy } from '../constants/authCopy';
 import { AmbientBackground } from './AmbientBackground';
-import { Palette } from '../types';
+import { AuthCredentials, Palette } from '../types';
 
 type AuthMode = 'login' | 'signup';
 
@@ -25,7 +25,7 @@ type AuthFormScreenProps = {
   isArabic: boolean;
   isDark: boolean;
   onToggleTheme: () => void;
-  onSubmit: () => void;
+  onSubmit: (credentials: AuthCredentials) => void;
   onSwitchMode: () => void;
 };
 
@@ -50,6 +50,14 @@ export function AuthFormScreen({
     if (mode === 'signup' && (!confirmPassword.trim() || confirmPassword !== password)) return false;
     return true;
   }, [confirmPassword, email, mode, password]);
+
+  const handleSubmit = () => {
+    if (!canSubmit) return;
+    onSubmit({
+      email: email.trim(),
+      password,
+    });
+  };
 
   return (
     <SafeAreaView edges={['top', 'bottom']} style={[styles.screen, { backgroundColor: palette.bg }]}>
@@ -148,7 +156,7 @@ export function AuthFormScreen({
             <Pressable
               style={[styles.primaryButton, { backgroundColor: palette.accent, opacity: canSubmit ? 1 : 0.55 }]}
               disabled={!canSubmit}
-              onPress={onSubmit}
+              onPress={handleSubmit}
             >
               <View style={styles.primarySheen} />
               <Text style={[styles.primaryButtonText, { color: '#102247' }]}>

@@ -2,7 +2,10 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { Alert, StatusBar, StyleSheet, useColorScheme, View } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { NavigationContainer } from '@react-navigation/native';
-import { createNativeStackNavigator } from '@react-navigation/native-stack';
+import {
+  createNativeStackNavigator,
+  NativeStackScreenProps,
+} from '@react-navigation/native-stack';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import { BottomNav } from './src/components/BottomNav';
@@ -11,15 +14,24 @@ import { getAuthCopy } from './src/constants/authCopy';
 import { getConversationsCopy } from './src/constants/conversationsCopy';
 import { getCreatePostCopy } from './src/constants/createPostCopy';
 import { getHomeCopy } from './src/constants/homeCopy';
-import { getConversations } from './src/data/conversations';
-import { getHomeFeed, HomeFeedItem } from './src/data/homeFeed';
-import { getMyReports } from './src/data/myReports';
-import { getNotifications } from './src/data/notifications';
+import { HomeFeedItem } from './src/data/homeFeed';
 import { getTranslations } from './src/i18n';
+import {
+  createPost,
+  fetchMessages,
+  findOrCreateConversationForPost,
+  loadAppData,
+  markAllNotificationsRead,
+  markNotificationRead,
+  sendMessage,
+  updatePostStatus,
+} from './src/lib/supabaseApp';
+import { analyzeFoundItemWithAi, isAiAssistantConfigured, searchPotentialFoundMatches } from './src/lib/aiAssistant';
 import { AddPostScreen } from './src/screens/AddPostScreen';
 import { ChatbotScreen } from './src/screens/ChatbotScreenV2';
 import { ConversationsScreen } from './src/screens/ConversationsScreen';
 import { DirectMessageScreen } from './src/screens/DirectMessageScreen';
+import { FoundItemReviewScreen } from './src/screens/FoundItemReviewScreen';
 import { HomeFeedScreen } from './src/screens/HomeFeedScreen';
 import { ItemDetailsScreen } from './src/screens/ItemDetailsScreen';
 import { LoginScreen } from './src/screens/LoginScreen';
@@ -31,8 +43,14 @@ import { ReportLostItemScreen } from './src/screens/ReportLostItemScreen';
 import { SearchScreen } from './src/screens/SearchScreen';
 import { SignupScreen } from './src/screens/SignupScreen';
 import { SplashScreen } from './src/screens/SplashScreen';
+import { supabase } from './src/supabase';
 import { darkPalette, lightPalette } from './src/theme';
 import {
+  AiFoundAnalysisDraft,
+  AiHubFoundInsight,
+  AiSearchRun,
+  AuthCredentials,
+  ChatMessage,
   ChatPreview,
   FeedPost,
   Language,
@@ -50,6 +68,10 @@ type AuthStackParamList = {
 };
 
 const AuthStack = createNativeStackNavigator<AuthStackParamList>();
+type AuthStackScreenProps<T extends keyof AuthStackParamList> = NativeStackScreenProps<
+  AuthStackParamList,
+  T
+>;
 
 export default function App() {
   const systemColorScheme = useColorScheme();
@@ -58,9 +80,20 @@ export default function App() {
   const [themeMode, setThemeMode] = useState<ThemeMode>('light');
   const [route, setRoute] = useState<RouteKey>('splash');
   const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [authReady, setAuthReady] = useState(false);
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+  const [currentUserEmail, setCurrentUserEmail] = useState('');
+  const [currentUserDisplayName, setCurrentUserDisplayName] = useState('');
   const [selectedConversation, setSelectedConversation] = useState<ChatPreview | null>(null);
+  const [selectedConversationMessages, setSelectedConversationMessages] = useState<ChatMessage[]>([]);
   const [selectedItem, setSelectedItem] = useState<HomeFeedItem | null>(null);
+  const [itemDetailsBackRoute, setItemDetailsBackRoute] = useState<RouteKey>('search');
+  const [searchBackRoute, setSearchBackRoute] = useState<RouteKey>('homeFeed');
+  const [searchMode, setSearchMode] = useState<'browse' | 'assistant'>('browse');
   const [highlightedReportId, setHighlightedReportId] = useState<string | null>(null);
+  const [isSendingMessage, setIsSendingMessage] = useState(false);
+  const [pendingFoundDraft, setPendingFoundDraft] = useState<AiFoundAnalysisDraft | null>(null);
+  const [aiSearchHistory, setAiSearchHistory] = useState<AiSearchRun[]>([]);
 
   const isArabic = language === 'ar';
   const isDark = themeMode === 'dark' || (themeMode === 'system' && systemColorScheme === 'dark');
@@ -73,22 +106,114 @@ export default function App() {
   const accountCopy = getAccountCopy(language);
 
   const [darkEnabled, setDarkEnabled] = useState(isDark);
-  const [posts, setPosts] = useState<HomeFeedItem[]>([...getHomeFeed(language)]);
-  const [chats, setChats] = useState<ChatPreview[]>([...getConversations(language)]);
-  const [notifications, setNotifications] = useState<NotificationItem[]>([...getNotifications(language)]);
-  const [reports, setReports] = useState<MyReportItem[]>([...getMyReports(language)]);
+  const [posts, setPosts] = useState<HomeFeedItem[]>([]);
+  const [chats, setChats] = useState<ChatPreview[]>([]);
+  const [notifications, setNotifications] = useState<NotificationItem[]>([]);
+  const [reports, setReports] = useState<MyReportItem[]>([]);
+
+  const getErrorMessage = (error: unknown, fallback: string) => {
+    if (typeof error === 'object' && error !== null && 'message' in error) {
+      const message = (error as { message?: unknown }).message;
+      if (typeof message === 'string' && message.trim()) {
+        return message;
+      }
+    }
+
+    if (typeof error === 'string' && error.trim()) {
+      return error;
+    }
+
+    return fallback;
+  };
+
+  const applySessionIdentity = (session: Awaited<ReturnType<typeof supabase.auth.getSession>>['data']['session']) => {
+    const email = session?.user.email ?? '';
+    const metadataName =
+      typeof session?.user.user_metadata?.display_name === 'string'
+        ? session.user.user_metadata.display_name
+        : typeof session?.user.user_metadata?.full_name === 'string'
+          ? session.user.user_metadata.full_name
+          : '';
+    const fallbackName = email ? email.split('@')[0] : '';
+
+    setCurrentUserEmail(email);
+    setCurrentUserDisplayName(metadataName || fallbackName || (isArabic ? 'المستخدم' : 'User'));
+  };
 
   useEffect(() => {
     setDarkEnabled(isDark);
   }, [isDark]);
 
   useEffect(() => {
-    setPosts([...getHomeFeed(language)]);
-    setChats([...getConversations(language)]);
-    setNotifications([...getNotifications(language)]);
-    setReports([...getMyReports(language)]);
     setHighlightedReportId(null);
   }, [language]);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    supabase.auth
+      .getSession()
+      .then(({ data: { session } }) => {
+        if (!isMounted) return;
+        setIsAuthenticated(Boolean(session));
+        setCurrentUserId(session?.user.id ?? null);
+        applySessionIdentity(session);
+        setRoute(session ? 'homeFeed' : 'login');
+        setAuthReady(true);
+      })
+      .catch((error) => {
+        if (!isMounted) return;
+        Alert.alert(t.appName, getErrorMessage(error, 'Failed to restore your session.'));
+        setAuthReady(true);
+        setRoute('login');
+      });
+
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (!isMounted) return;
+      setIsAuthenticated(Boolean(session));
+      setCurrentUserId(session?.user.id ?? null);
+      applySessionIdentity(session);
+      setRoute(session ? 'homeFeed' : 'login');
+    });
+
+    return () => {
+      isMounted = false;
+      subscription.unsubscribe();
+    };
+  }, [t.appName]);
+
+  useEffect(() => {
+    if (!isAuthenticated) {
+      setPosts([]);
+      setChats([]);
+      setNotifications([]);
+      setReports([]);
+      setSelectedConversationMessages([]);
+      setCurrentUserEmail('');
+      setCurrentUserDisplayName('');
+      return;
+    }
+
+    let isMounted = true;
+
+    loadAppData(language)
+      .then((data) => {
+        if (!isMounted) return;
+        setPosts(data.posts);
+        setChats(data.chats);
+        setNotifications(data.notifications);
+        setReports(data.reports);
+      })
+      .catch((error) => {
+        Alert.alert(t.appName, getErrorMessage(error, 'Failed to load app data.'));
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [isAuthenticated, language, t.appName]);
 
   const tabs = useMemo(
     () => [
@@ -101,6 +226,15 @@ export default function App() {
     []
   );
 
+  const refreshAppData = async () => {
+    if (!isAuthenticated) return;
+    const data = await loadAppData(language);
+    setPosts(data.posts);
+    setChats(data.chats);
+    setNotifications(data.notifications);
+    setReports(data.reports);
+  };
+
   const toggleTheme = () => {
     setThemeMode((current) => {
       if (current === 'system') return isDark ? 'light' : 'dark';
@@ -108,98 +242,260 @@ export default function App() {
     });
   };
 
-  const openConversation = (chat: ChatPreview) => {
+  const openConversation = async (chat: ChatPreview) => {
     setSelectedConversation(chat);
+    setSelectedConversationMessages([]);
     setRoute('directMessage');
+
+    if (!currentUserId) return;
+
+    try {
+      const messages = await fetchMessages(chat.id, currentUserId, language);
+      setSelectedConversationMessages(messages);
+    } catch (error) {
+      Alert.alert(t.appName, getErrorMessage(error, 'Failed to load messages.'));
+    }
   };
 
-  const openConversationFromPost = (post: HomeFeedItem) => {
-    const preview: ChatPreview = {
-      id: post.id,
-      name: post.contactName,
-      message: post.description,
-      time: post.time,
-      avatarInitial: post.contactName.charAt(0),
-      avatarColor: post.type === 'lost' ? '#ef8c8f' : '#9fd63a',
-      unread: false,
-    };
+  const openConversationFromPost = async (post: HomeFeedItem) => {
+    if (!currentUserId) {
+      Alert.alert(t.appName, isArabic ? 'يرجى تسجيل الدخول أولاً.' : 'Please sign in first.');
+      return;
+    }
 
-    openConversation(preview);
+    if (post.userId === currentUserId) {
+      Alert.alert(
+        t.appName,
+        isArabic ? 'لا يمكنك مراسلة نفسك على بلاغك.' : 'You cannot message yourself about your own post.'
+      );
+      return;
+    }
+
+    try {
+      const preview = await findOrCreateConversationForPost(post, currentUserId, language);
+      await refreshAppData();
+      await openConversation(preview);
+    } catch (error) {
+      Alert.alert(t.appName, getErrorMessage(error, 'Failed to open the conversation.'));
+    }
   };
 
-  const openItemDetails = (item: HomeFeedItem) => {
+  const openItemDetails = (item: HomeFeedItem, backRoute: RouteKey = 'search') => {
     setSelectedItem(item);
+    setItemDetailsBackRoute(backRoute);
     setRoute('itemDetails');
   };
 
-  const openConversationFromReport = (report: MyReportItem) => {
-    const preview: ChatPreview = {
-      id: report.id,
-      name: report.contactName,
-      message: report.description,
-      time: report.lastUpdate,
-      avatarInitial: report.contactName.charAt(0),
-      avatarColor: report.type === 'lost' ? '#ef8c8f' : '#9fd63a',
-      unread: false,
-    };
+  const openConversationFromReport = async (report: MyReportItem) => {
+    const existingChat = chats.find((chat) => chat.contextPostId === report.id);
 
-    openConversation(preview);
+    if (!existingChat) {
+      Alert.alert(
+        t.appName,
+        isArabic ? 'لا توجد محادثة مرتبطة بهذا البلاغ بعد.' : 'There is no conversation for this report yet.'
+      );
+      return;
+    }
+
+    await openConversation(existingChat);
   };
 
-  const onSubmitPost = (post: FeedPost) => {
-    setPosts((prev) => [
-      {
-        ...post,
-        category: post.category,
-        time: language === 'ar' ? 'الآن' : 'Just now',
-      },
-      ...prev,
-    ]);
-    setReports((prev) => [
-      {
-        id: post.id,
+  const onSubmitPost = async (post: FeedPost) => {
+    if (!currentUserId) {
+      Alert.alert(t.appName, isArabic ? 'يرجى تسجيل الدخول أولاً.' : 'Please sign in first.');
+      return;
+    }
+
+    try {
+      await createPost({
+        userId: currentUserId,
         type: post.type,
         title: post.title,
         description: post.description,
         location: post.location,
-        time: language === 'ar' ? '\u0627\u0644\u0622\u0646' : 'Just now',
-        status: 'open',
-        contactName: post.contactName,
-        views: 0,
-        messages: 0,
-        lastUpdate: language === 'ar' ? '\u0627\u0644\u0622\u0646' : 'Just now',
-      },
-      ...prev,
-    ]);
-    setRoute('homeFeed');
-    Alert.alert(t.appName, t.postSuccess);
+        category: post.category,
+        image: post.image ?? null,
+      });
+      await refreshAppData();
+      setRoute('homeFeed');
+      Alert.alert(t.appName, t.postSuccess);
+    } catch (error) {
+      Alert.alert(t.appName, getErrorMessage(error, 'Failed to create the report.'));
+    }
   };
 
-  const handleMarkAllNotificationsRead = () => {
-    setNotifications((prev) => prev.map((item) => ({ ...item, unread: false })));
+  const handleAnalyzeFoundPost = async (post: FeedPost) => {
+    if (!post.image) {
+      Alert.alert(createPostCopy.foundImageRequiredTitle, createPostCopy.foundImageRequiredDescription);
+      return;
+    }
+
+    try {
+      const analysis = await analyzeFoundItemWithAi({
+        image: post.image,
+        description: post.description,
+        locationFound: post.location,
+        language,
+      });
+
+      setPendingFoundDraft({
+        image: post.image,
+        draftImageStoragePath: analysis.draftImageStoragePath,
+        description: post.description,
+        location: post.location,
+        category: post.category,
+        analysis: analysis.analysis,
+      });
+      setRoute('foundAiReview');
+    } catch (error) {
+      Alert.alert(t.appName, getErrorMessage(error, 'Failed to analyze the item.'));
+    }
   };
 
-  const handleOpenReportFromNotification = (reportId: string, notificationId: string) => {
-    setNotifications((prev) =>
-      prev.map((item) => (item.id === notificationId ? { ...item, unread: false } : item))
-    );
-    setHighlightedReportId(reportId);
+  const handlePublishReviewedFoundPost = async (payload: {
+    title: string;
+    description: string;
+    category: FeedPost['category'];
+    aiDraft: AiFoundAnalysisDraft;
+  }) => {
+    if (!currentUserId) {
+      Alert.alert(t.appName, isArabic ? 'يرجى تسجيل الدخول أولاً.' : 'Please sign in first.');
+      return;
+    }
+
+    try {
+      await createPost({
+        userId: currentUserId,
+        type: 'found',
+        title: payload.title,
+        description: payload.description,
+        location: payload.aiDraft.location,
+        category: payload.category,
+        image: payload.aiDraft.image,
+        aiAnalysis: payload.aiDraft.analysis,
+        existingImageStoragePath: payload.aiDraft.draftImageStoragePath,
+      });
+      setPendingFoundDraft(null);
+      await refreshAppData();
+      setRoute('chatbot');
+      Alert.alert(t.appName, t.postSuccess);
+    } catch (error) {
+      Alert.alert(t.appName, getErrorMessage(error, 'Failed to create the report.'));
+    }
+  };
+
+  const handleRunAiSearch = async (query: string) => {
+    const run = await searchPotentialFoundMatches(query, language);
+    setAiSearchHistory((current) => [run, ...current.filter((entry) => entry.id !== run.id)].slice(0, 6));
+    return run;
+  };
+
+  const handleMarkAllNotificationsRead = async () => {
+    try {
+      await markAllNotificationsRead(
+        notifications.filter((item) => item.unread).map((item) => item.id)
+      );
+      await refreshAppData();
+    } catch (error) {
+      Alert.alert(t.appName, getErrorMessage(error, 'Failed to update notifications.'));
+    }
+  };
+
+  const handleOpenReportFromNotification = async (postId: string, notificationId: string) => {
+    try {
+      await markNotificationRead(notificationId);
+      await refreshAppData();
+    } catch (error) {
+      Alert.alert(t.appName, getErrorMessage(error, 'Failed to update the notification.'));
+    }
+
+    setHighlightedReportId(postId);
     setRoute('myReports');
   };
 
-  const handleToggleReportStatus = (reportId: string) => {
-    setReports((prev) =>
-      prev.map((report) => {
-        if (report.id !== reportId) return report;
-        return {
-          ...report,
-          status: report.status === 'resolved' ? 'open' : 'resolved',
-        };
-      })
-    );
+  const handleToggleReportStatus = async (reportId: string) => {
+    const report = reports.find((item) => item.id === reportId);
+    if (!report) return;
+
+    try {
+      await updatePostStatus(reportId, report.status === 'resolved' ? 'active' : 'resolved');
+      await refreshAppData();
+    } catch (error) {
+      Alert.alert(t.appName, getErrorMessage(error, 'Failed to update the report.'));
+    }
+  };
+
+  const handleSendMessage = async (text: string) => {
+    if (!selectedConversation || !currentUserId) return;
+
+    try {
+      setIsSendingMessage(true);
+      await sendMessage(selectedConversation.id, currentUserId, text);
+      const messages = await fetchMessages(selectedConversation.id, currentUserId, language);
+      setSelectedConversationMessages(messages);
+      await refreshAppData();
+    } catch (error) {
+      Alert.alert(t.appName, getErrorMessage(error, 'Failed to send the message.'));
+    } finally {
+      setIsSendingMessage(false);
+    }
+  };
+
+  const handleLogin = async ({ email, password }: AuthCredentials) => {
+    try {
+      const { error } = await supabase.auth.signInWithPassword({ email, password });
+      if (error) {
+        Alert.alert(t.appName, getErrorMessage(error, 'Login failed.'));
+      }
+    } catch (error) {
+      Alert.alert(t.appName, getErrorMessage(error, 'Login failed.'));
+    }
+  };
+
+  const handleSignup = async ({ email, password }: AuthCredentials) => {
+    try {
+      const { error } = await supabase.auth.signUp({ email, password });
+
+      if (error) {
+        Alert.alert(t.appName, getErrorMessage(error, 'Signup failed.'));
+        return;
+      }
+
+      Alert.alert(
+        t.appName,
+        isArabic
+          ? 'تم إنشاء الحساب. إذا كان تأكيد البريد مفعلًا في Supabase، افحص بريدك ثم سجّل الدخول.'
+          : 'Your account was created. If email confirmation is enabled in Supabase, check your inbox and then sign in.'
+      );
+    } catch (error) {
+      Alert.alert(t.appName, getErrorMessage(error, 'Signup failed.'));
+    }
+  };
+
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
+    setSelectedConversation(null);
+    setSelectedConversationMessages([]);
+    setSelectedItem(null);
+    setHighlightedReportId(null);
+    setPendingFoundDraft(null);
+    setAiSearchHistory([]);
   };
 
   const unreadNotificationsCount = notifications.filter((item) => item.unread).length;
+  const aiConfigured = isAiAssistantConfigured();
+  const aiHubFoundInsights: AiHubFoundInsight[] = reports
+    .filter((report) => report.type === 'found')
+    .slice(0, 3)
+    .map((report) => ({
+      id: report.id,
+      title: report.title,
+      summary: report.description,
+      confidence: report.status === 'resolved' ? 'high' : report.status === 'matching' ? 'medium' : 'low',
+      time: report.time,
+      image: report.image,
+    }));
+  const latestAiMatches = aiSearchHistory[0]?.matches.slice(0, 3) ?? [];
 
   const renderCoreScreen = () => {
     switch (route) {
@@ -210,12 +506,34 @@ export default function App() {
             palette={palette}
             isArabic={isArabic}
             posts={posts}
-            onOpenSearch={() => setRoute('search')}
+            currentUserId={currentUserId}
+            onOpenSearch={() => {
+              setSearchBackRoute('homeFeed');
+              setSearchMode('browse');
+              setRoute('search');
+            }}
             onOpenConversation={openConversationFromPost}
           />
         );
       case 'chatbot':
-        return <ChatbotScreen t={t} palette={palette} isArabic={isArabic} />;
+        return (
+          <ChatbotScreen
+            copy={homeCopy}
+            palette={palette}
+            isArabic={isArabic}
+            aiConfigured={aiConfigured}
+            recentFoundInsights={aiHubFoundInsights}
+            recentSearches={aiSearchHistory}
+            likelyMatches={latestAiMatches}
+            onOpenFoundFlow={() => setRoute('reportFound')}
+            onOpenSearch={() => {
+              setSearchBackRoute('chatbot');
+              setSearchMode('assistant');
+              setRoute('search');
+            }}
+            onOpenMatch={(item) => openItemDetails(item, 'chatbot')}
+          />
+        );
       case 'addPost':
         return (
           <AddPostScreen
@@ -243,8 +561,12 @@ export default function App() {
             palette={palette}
             isArabic={isArabic}
             chat={selectedConversation}
+            messages={selectedConversationMessages}
+            isSending={isSendingMessage}
+            onSendMessage={handleSendMessage}
             onBack={() => {
               setSelectedConversation(null);
+              setSelectedConversationMessages([]);
               setRoute('conversations');
             }}
           />
@@ -256,6 +578,8 @@ export default function App() {
             copy={accountCopy}
             palette={palette}
             isArabic={isArabic}
+            userDisplayName={currentUserDisplayName || (isArabic ? 'المستخدم' : 'User')}
+            userEmail={currentUserEmail}
             darkEnabled={darkEnabled}
             setDarkEnabled={setDarkEnabled}
             setThemeMode={setThemeMode}
@@ -269,13 +593,7 @@ export default function App() {
               setHighlightedReportId(null);
               setRoute('myReports');
             }}
-            onLogout={() => {
-              setIsAuthenticated(false);
-              setSelectedConversation(null);
-              setSelectedItem(null);
-              setHighlightedReportId(null);
-              setRoute('login');
-            }}
+            onLogout={handleLogout}
           />
         );
       default:
@@ -292,8 +610,12 @@ export default function App() {
             palette={palette}
             isArabic={isArabic}
             items={posts}
-            onBack={() => setRoute('homeFeed')}
-            onOpenItem={openItemDetails}
+            aiConfigured={aiConfigured}
+            latestAiSearch={aiSearchHistory[0] ?? null}
+            mode={searchMode}
+            onBack={() => setRoute(searchBackRoute)}
+            onRunAiSearch={handleRunAiSearch}
+            onOpenItem={(item) => openItemDetails(item, 'search')}
           />
         );
       case 'itemDetails':
@@ -303,7 +625,8 @@ export default function App() {
             palette={palette}
             isArabic={isArabic}
             item={selectedItem}
-            onBack={() => setRoute('search')}
+            currentUserId={currentUserId}
+            onBack={() => setRoute(itemDetailsBackRoute)}
             onOpenChat={openConversationFromPost}
           />
         ) : null;
@@ -324,9 +647,20 @@ export default function App() {
             palette={palette}
             isArabic={isArabic}
             onBack={() => setRoute('addPost')}
-            onSubmitPost={onSubmitPost}
+            onAnalyzePost={handleAnalyzeFoundPost}
           />
         );
+      case 'foundAiReview':
+        return pendingFoundDraft ? (
+          <FoundItemReviewScreen
+            copy={createPostCopy}
+            palette={palette}
+            isArabic={isArabic}
+            draft={pendingFoundDraft}
+            onBack={() => setRoute('reportFound')}
+            onPublish={handlePublishReviewedFoundPost}
+          />
+        ) : null;
       case 'notifications':
         return (
           <NotificationsScreen
@@ -363,7 +697,7 @@ export default function App() {
   const renderAuthedScreen = () => renderCoreScreen() ?? renderAuxiliaryScreen();
 
   const activeTab: TabKey =
-    route === 'reportLost' || route === 'reportFound'
+    route === 'reportLost' || route === 'reportFound' || route === 'foundAiReview'
       ? 'addPost'
       : route === 'homeFeed' ||
           route === 'chatbot' ||
@@ -378,7 +712,16 @@ export default function App() {
       <SafeAreaProvider>
         <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} backgroundColor={palette.bg} />
         <View style={[styles.screen, { backgroundColor: palette.bg }]}>
-          {!isAuthenticated ? (
+          {!authReady ? (
+            <SplashScreen
+              copy={authCopy}
+              palette={palette}
+              isDark={isDark}
+              onDone={() => undefined}
+              onToggleTheme={toggleTheme}
+              setThemeMode={setThemeMode}
+            />
+          ) : !isAuthenticated ? (
             <NavigationContainer>
               <AuthStack.Navigator
                 id="auth-stack"
@@ -390,7 +733,7 @@ export default function App() {
                 }}
               >
                 <AuthStack.Screen name="Splash">
-                  {({ navigation }) => (
+                  {({ navigation }: AuthStackScreenProps<'Splash'>) => (
                     <SplashScreen
                       copy={authCopy}
                       palette={palette}
@@ -402,17 +745,14 @@ export default function App() {
                   )}
                 </AuthStack.Screen>
                 <AuthStack.Screen name="Login">
-                  {({ navigation }) => (
+                  {({ navigation }: AuthStackScreenProps<'Login'>) => (
                     <LoginScreen
                       copy={authCopy}
                       palette={palette}
                       isArabic={isArabic}
                       isDark={isDark}
                       onToggleTheme={toggleTheme}
-                      onSubmit={() => {
-                        setIsAuthenticated(true);
-                        setRoute('homeFeed');
-                      }}
+                      onSubmit={handleLogin}
                       onSwitchToSignup={() => {
                         navigation.navigate('Signup');
                       }}
@@ -420,17 +760,14 @@ export default function App() {
                   )}
                 </AuthStack.Screen>
                 <AuthStack.Screen name="Signup">
-                  {({ navigation }) => (
+                  {({ navigation }: AuthStackScreenProps<'Signup'>) => (
                     <SignupScreen
                       copy={authCopy}
                       palette={palette}
                       isArabic={isArabic}
                       isDark={isDark}
                       onToggleTheme={toggleTheme}
-                      onSubmit={() => {
-                        setIsAuthenticated(true);
-                        setRoute('homeFeed');
-                      }}
+                      onSubmit={handleSignup}
                       onSwitchToLogin={() => {
                         navigation.goBack();
                       }}
@@ -453,6 +790,10 @@ export default function App() {
                     setSelectedItem(null);
                     setHighlightedReportId(null);
                     setSelectedConversation(null);
+                    setSelectedConversationMessages([]);
+                    if (tab !== 'addPost') {
+                      setPendingFoundDraft(null);
+                    }
                   }}
                 />
               )}

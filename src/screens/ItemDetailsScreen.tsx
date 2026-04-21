@@ -1,6 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import React from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { AmbientBackground } from '../components/AmbientBackground';
@@ -13,12 +13,22 @@ type ItemDetailsScreenProps = {
   palette: Palette;
   isArabic: boolean;
   item: HomeFeedItem;
+  currentUserId: string | null;
   onBack: () => void;
   onOpenChat: (item: HomeFeedItem) => void;
 };
 
-export function ItemDetailsScreen({ copy, palette, isArabic, item, onBack, onOpenChat }: ItemDetailsScreenProps) {
+export function ItemDetailsScreen({
+  copy,
+  palette,
+  isArabic,
+  item,
+  currentUserId,
+  onBack,
+  onOpenChat,
+}: ItemDetailsScreenProps) {
   const isLost = item.type === 'lost';
+  const isOwnPost = Boolean(currentUserId && item.userId === currentUserId);
 
   const getStatusLabel = () => {
     if (item.status === 'open') return copy.statusOpen;
@@ -50,12 +60,14 @@ export function ItemDetailsScreen({ copy, palette, isArabic, item, onBack, onOpe
       </View>
 
       <ScrollView contentContainerStyle={styles.contentContainer} showsVerticalScrollIndicator={false}>
-        {isLost && (
+        {item.image ? (
+          <Image source={{ uri: item.image }} style={styles.heroPhoto} resizeMode="cover" />
+        ) : isLost ? (
           <View style={[styles.heroImage, { backgroundColor: '#FCECEE', borderColor: '#F3A5AC' }]}>
             <Ionicons name={getCategoryIcon()} size={42} color="#D95C63" />
             <Text style={styles.heroImageLabel}>{copy.imageLabel}</Text>
           </View>
-        )}
+        ) : null}
 
         <View style={[styles.card, { backgroundColor: palette.card, borderColor: palette.border }]}>
           <View style={[styles.badgeRow, isArabic && styles.rowReverse]}>
@@ -94,7 +106,11 @@ export function ItemDetailsScreen({ copy, palette, isArabic, item, onBack, onOpe
             </View>
           </View>
 
-          <Pressable style={[styles.contactButton, { backgroundColor: palette.accent }]} onPress={() => onOpenChat(item)}>
+          <Pressable
+            style={[styles.contactButton, { backgroundColor: palette.accent, opacity: isOwnPost ? 0.45 : 1 }]}
+            onPress={() => onOpenChat(item)}
+            disabled={isOwnPost}
+          >
             <Text style={styles.contactButtonText}>{copy.contact}</Text>
           </Pressable>
         </View>
@@ -148,6 +164,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: 10,
+  },
+  heroPhoto: {
+    width: '100%',
+    height: 240,
+    borderRadius: 28,
   },
   heroImageLabel: {
     color: '#A44B54',
