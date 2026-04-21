@@ -1,9 +1,6 @@
 openai
-sentence-transformers
 Pillow
 requests
-numpy
-scikit-learn
 psycopg[binary]
 fastapi
 uvicorn

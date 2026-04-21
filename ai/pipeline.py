@@ -1,5 +1,7 @@
 import base64
+import hashlib
 import json
+import math
 import os
 import re
 import uuid
@@ -9,12 +11,9 @@ from io import BytesIO
 from pathlib import Path
 from typing import Any
 
-import numpy as np
 import requests
 from openai import OpenAI
 from PIL import Image
-from sentence_transformers import SentenceTransformer
-from sklearn.metrics.pairwise import cosine_similarity
 
 try:
     import psycopg
@@ -375,7 +374,7 @@ class LostFoundPipeline:
             else InMemoryDatabase()
         )
         self._client: OpenAI | None = None
-        self._embedder: SentenceTransformer | None = None
+        self._embedder: Any | None = None
 
     @property
     def client(self) -> OpenAI:
@@ -389,13 +388,50 @@ class LostFoundPipeline:
         return self._client
 
     @property
-    def embedder(self) -> SentenceTransformer:
+    def use_sentence_transformers(self) -> bool:
+        return str(os.getenv("USE_SENTENCE_TRANSFORMERS", "0")).strip().lower() in {"1", "true", "yes", "on"}
+
+    @property
+    def embedder(self) -> Any:
+        if not self.use_sentence_transformers:
+            return None
         if self._embedder is None:
+            try:
+                from sentence_transformers import SentenceTransformer
+            except ImportError as error:  # pragma: no cover - optional local-only path
+                raise RuntimeError(
+                    "sentence-transformers is not installed. Either install it in the local AI environment "
+                    "or leave USE_SENTENCE_TRANSFORMERS unset to use lightweight embeddings."
+                ) from error
             self._embedder = SentenceTransformer(self.config.embedding_model)
         return self._embedder
 
+    def _lightweight_embed(self, text: str, dims: int = 256) -> list[float]:
+        vector = [0.0] * dims
+        tokens = self.tokenize(text)
+        if not tokens:
+            return vector
+
+        weighted_features: list[tuple[str, float]] = [(token, 1.0) for token in tokens]
+        weighted_features.extend(
+            (f"{left}_{right}", 0.75) for left, right in zip(tokens, tokens[1:])
+        )
+
+        for feature, weight in weighted_features:
+            digest = hashlib.blake2b(feature.encode("utf-8"), digest_size=8).digest()
+            index = int.from_bytes(digest[:4], "big") % dims
+            sign = 1.0 if digest[4] % 2 == 0 else -1.0
+            vector[index] += sign * weight
+
+        norm = math.sqrt(sum(value * value for value in vector))
+        if norm == 0:
+            return vector
+        return [value / norm for value in vector]
+
     def embed(self, text: str) -> list[float]:
-        return self.embedder.encode(text, normalize_embeddings=True).tolist()
+        if self.use_sentence_transformers:
+            return self.embedder.encode(text, normalize_embeddings=True).tolist()
+        return self._lightweight_embed(text)
 
     def load_image_from_url(self, url: str) -> Image.Image:
         headers = {
@@ -789,6 +825,14 @@ class LostFoundPipeline:
             return 0.0
         return len(left_set & right_set) / len(left_set | right_set)
 
+    def cosine_similarity_score(self, left: list[float], right: list[float]) -> float:
+        if not left or not right:
+            return 0.0
+        size = min(len(left), len(right))
+        if size == 0:
+            return 0.0
+        return float(sum(left[index] * right[index] for index in range(size)))
+
     def normalize_time_clues(self, clues: list[str]) -> list[str]:
         normalized: list[str] = []
         for clue in clues:
@@ -977,9 +1021,8 @@ class LostFoundPipeline:
 
         parsed_lost = self.parse_lost_item_description(lost_description)
         query_text = self.build_lost_embed_text(parsed_lost, lost_description)
-        query_vector = np.array(self.embed(query_text)).reshape(1, -1)
-        item_vectors = np.array([item["embedding"] for item in valid_items])
-        semantic_scores = cosine_similarity(query_vector, item_vectors)[0]
+        query_vector = self.embed(query_text)
+        semantic_scores = [self.cosine_similarity_score(query_vector, item["embedding"]) for item in valid_items]
         lost_category = parsed_lost.get("category")
 
         ranked_results: list[dict[str, Any]] = []
