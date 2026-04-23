@@ -240,7 +240,7 @@ class PipelineConfig:
 
     @classmethod
     def from_env(cls) -> "PipelineConfig":
-        use_lightweight = cls._env_bool("LIGHTWEIGHT_EMBEDDINGS", default=bool(os.getenv("VERCEL")))
+        use_lightweight = cls._env_bool("LIGHTWEIGHT_EMBEDDINGS", default=False)
         return cls(
             moonshot_api_key=os.getenv("MOONSHOT_API_KEY"),
             kimi_model=os.getenv("KIMI_MODEL", "kimi-k2.5"),
@@ -1228,7 +1228,7 @@ class LostFoundPipeline:
             "keyword_overlap": keyword_overlap,
         }
 
-    def search_found_items(self, lost_description: str, top_k: int = 3, threshold: float = 0.55) -> list[dict[str, Any]]:
+    def search_found_items(self, lost_description: str, top_k: int = 3, threshold: float = 0.48) -> list[dict[str, Any]]:
         valid_items: list[dict[str, Any]] = []
         for item in self.db.found_items:
             item_status = str(item.get("status") or "").lower()
@@ -1279,11 +1279,11 @@ class LostFoundPipeline:
             "semantic_scores": [float(score) for score in semantic_scores[:20]],
         }
 
+        strict_semantic_cutoff = 0.05 if self._use_lightweight_embeddings else 0.30
+        relaxed_final_cutoff = 0.18
         ranked_results: list[dict[str, Any]] = []
+        relaxed_results: list[dict[str, Any]] = []
         for item, semantic_score in zip(valid_items, semantic_scores):
-            if semantic_score < 0.30:
-                continue
-
             found_category = item.get("category")
             if (lost_category, found_category) in CATEGORY_CONTRADICTIONS or (found_category, lost_category) in CATEGORY_CONTRADICTIONS:
                 continue
@@ -1298,8 +1298,6 @@ class LostFoundPipeline:
                     }
                 )
                 continue
-            if scored["final_score"] < threshold:
-                continue
 
             result = dict(item)
             result.update(
@@ -1313,10 +1311,23 @@ class LostFoundPipeline:
                     "lost_structured": parsed_lost,
                 }
             )
-            ranked_results.append(result)
+
+            if float(semantic_score) >= strict_semantic_cutoff and scored["final_score"] >= threshold:
+                ranked_results.append(result)
+
+            if scored["final_score"] >= relaxed_final_cutoff:
+                relaxed_results.append(result)
 
         ranked_results.sort(key=lambda item: item["score"], reverse=True)
-        return ranked_results[:top_k]
+        if ranked_results:
+            return ranked_results[:top_k]
+
+        # High-recall fallback: return best plausible candidates when strict thresholds are too harsh.
+        relaxed_results.sort(key=lambda item: item["score"], reverse=True)
+        fallback = relaxed_results[:top_k]
+        self._last_search_debug["fallback_mode"] = True
+        self._last_search_debug["fallback_count"] = len(fallback)
+        return fallback
 
     def explain_match(self, lost_description: str, found_item: dict[str, Any], score: float) -> str:
         evidence_lines = "\n".join(f"- {item}" for item in found_item.get("evidence", [])[:6]) or "- semantic similarity"

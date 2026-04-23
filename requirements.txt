@@ -5,3 +5,5 @@ psycopg[binary]
 fastapi
 uvicorn
 numpy
+sentence-transformers
+scikit-learn
