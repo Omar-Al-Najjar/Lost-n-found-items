@@ -239,6 +239,7 @@ def download_image(image_url: str) -> Image.Image:
     return Image.open(BytesIO(response.content)).convert("RGB")
 
 
+@app.get("/health")
 @app.get("/api/health")
 def healthcheck() -> dict[str, Any]:
     return {
@@ -247,6 +248,7 @@ def healthcheck() -> dict[str, Any]:
     }
 
 
+@app.post("/found/analyze")
 @app.post("/api/found/analyze")
 def analyze_found_item(
     payload: FoundAnalyzeRequest,
@@ -332,6 +334,7 @@ def analyze_found_item(
     return response_payload
 
 
+@app.post("/found/normalize")
 @app.post("/api/found/normalize")
 def normalize_found_post(
     payload: FoundNormalizeRequest,
@@ -370,6 +373,7 @@ def normalize_found_post(
     }
 
 
+@app.post("/lost/search")
 @app.post("/api/lost/search")
 def search_lost_item(
     payload: LostSearchRequest,
