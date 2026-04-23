@@ -6,6 +6,7 @@ from functools import lru_cache
 from io import BytesIO
 from typing import Any
 from urllib.parse import quote
+import traceback
 
 import requests
 from fastapi import FastAPI, Header, HTTPException
@@ -30,6 +31,20 @@ class LostSearchRequest(BaseModel):
     query: str = Field(min_length=1)
     topK: int = Field(default=3, ge=1, le=10)
     language: str = "en"
+
+
+class FoundNormalizeRequest(BaseModel):
+    title: str = ""
+    summary: str = ""
+    description: str = ""
+    locationFound: str = ""
+    category: str = ""
+    itemType: str = ""
+    primaryColor: str = ""
+    material: str = ""
+    brand: str = ""
+    distinctiveFeatures: list[str] = Field(default_factory=list)
+    searchKeywords: list[str] = Field(default_factory=list)
 
 
 def _require_env(name: str) -> str:
@@ -73,22 +88,21 @@ def build_review_hint(language: str, confidence: str) -> str:
     is_arabic = str(language).lower().startswith("ar")
     if confidence == "high":
         return (
-            "اقترح الذكاء الاصطناعي هذه التفاصيل بناءً على الصورة. راجعها قبل النشر."
+            "\u0627\u0642\u062a\u0631\u062d \u0627\u0644\u0630\u0643\u0627\u0621 \u0627\u0644\u0627\u0635\u0637\u0646\u0627\u0639\u064a \u0647\u0630\u0647 \u0627\u0644\u062a\u0641\u0627\u0635\u064a\u0644 \u0645\u0646 \u0627\u0644\u0635\u0648\u0631\u0629. \u0631\u0627\u062c\u0639\u0647\u0627 \u0642\u0628\u0644 \u0627\u0644\u0646\u0634\u0631."
             if is_arabic
             else "AI suggested these details from the photo. Review them before publishing."
         )
     if confidence == "medium":
         return (
-            "الصورة مفيدة لكن بعض التفاصيل تحتاج تأكيدك قبل النشر."
+            "\u0633\u0627\u0639\u062f\u062a \u0627\u0644\u0635\u0648\u0631\u0629\u060c \u0644\u0643\u0646 \u0628\u0639\u0636 \u0627\u0644\u062a\u0641\u0627\u0635\u064a\u0644 \u0645\u0627 \u0632\u0627\u0644\u062a \u062a\u062d\u062a\u0627\u062c \u0644\u0645\u0631\u0627\u062c\u0639\u062a\u0643 \u0642\u0628\u0644 \u0627\u0644\u0646\u0634\u0631."
             if is_arabic
             else "The photo helped, but some details still need your confirmation before publishing."
         )
     return (
-        "الصورة غير واضحة بالكامل، فعدّل التفاصيل يدويًا قبل النشر."
+        "\u0644\u0645 \u062a\u0643\u0646 \u0627\u0644\u0635\u0648\u0631\u0629 \u0648\u0627\u0636\u062d\u0629 \u0628\u0634\u0643\u0644 \u0643\u0627\u0641\u064d\u060c \u0641\u064a\u064f\u0641\u0636\u0644 \u062a\u0639\u062f\u064a\u0644 \u0627\u0644\u062a\u0641\u0627\u0635\u064a\u0644 \u064a\u062f\u0648\u064a\u064b\u0627 \u0642\u0628\u0644 \u0627\u0644\u0646\u0634\u0631."
         if is_arabic
         else "The image was only partially clear, so edit the details manually before publishing."
     )
-
 
 def map_confidence(value: str | None) -> str:
     normalized = str(value or "").strip().lower()
@@ -106,31 +120,89 @@ def map_category(value: str | None) -> str:
     return "other"
 
 
+def is_arabic_language(language: str | None) -> bool:
+    return str(language or "").strip().lower().startswith("ar")
+
+
+def translate_text_with_pipeline(
+    text: str,
+    *,
+    target_language: str,
+    pipeline: LostFoundPipeline,
+) -> str:
+    value = str(text or "").strip()
+    if not value:
+        return value
+
+    for _ in range(2):
+        try:
+            response = pipeline.client.chat.completions.create(
+                model=pipeline.config.kimi_model,
+                messages=[
+                    {
+                        "role": "system",
+                        "content": (
+                            "Translate the text into the target language. "
+                            "Preserve meaning and keep brand/person names unchanged. "
+                            "Return plain text only."
+                        ),
+                    },
+                    {"role": "user", "content": f"Target language: {target_language}\nText:\n{value}"},
+                ],
+                max_tokens=600,
+                extra_body={"thinking": {"type": "disabled"}},
+                timeout=20,
+            )
+            translated = (response.choices[0].message.content or "").strip()
+            return translated or value
+        except Exception:
+            continue
+    return value
+
+
+def translate_list_with_pipeline(values: list[str], *, target_language: str, pipeline: LostFoundPipeline) -> list[str]:
+    return [
+        translate_text_with_pipeline(str(value or ""), target_language=target_language, pipeline=pipeline)
+        for value in values
+    ]
+
+
 def relative_time_label(value: str | None, language: str) -> str:
     is_arabic = str(language).lower().startswith("ar")
     if not value:
-        return "الآن" if is_arabic else "Just now"
+        return "\u0627\u0644\u0622\u0646" if is_arabic else "Just now"
     try:
         parsed = datetime.fromisoformat(str(value).replace("Z", "+00:00"))
     except ValueError:
-        return "الآن" if is_arabic else "Just now"
+        return "\u0627\u0644\u0622\u0646" if is_arabic else "Just now"
 
     if parsed.tzinfo is None:
         parsed = parsed.replace(tzinfo=UTC)
 
     diff_minutes = int((datetime.now(UTC) - parsed.astimezone(UTC)).total_seconds() // 60)
     if diff_minutes <= 0:
-        return "الآن" if is_arabic else "Just now"
+        return "\u0627\u0644\u0622\u0646" if is_arabic else "Just now"
     if diff_minutes < 60:
-        return f"قبل {diff_minutes} دقيقة" if is_arabic else f"{diff_minutes} minute{'s' if diff_minutes != 1 else ''} ago"
+        return (
+            f"\u0642\u0628\u0644 {diff_minutes} \u062f\u0642\u064a\u0642\u0629"
+            if is_arabic
+            else f"{diff_minutes} minute{'s' if diff_minutes != 1 else ''} ago"
+        )
 
     diff_hours = diff_minutes // 60
     if diff_hours < 24:
-        return f"قبل {diff_hours} ساعة" if is_arabic else f"{diff_hours} hour{'s' if diff_hours != 1 else ''} ago"
+        return (
+            f"\u0642\u0628\u0644 {diff_hours} \u0633\u0627\u0639\u0629"
+            if is_arabic
+            else f"{diff_hours} hour{'s' if diff_hours != 1 else ''} ago"
+        )
 
     diff_days = diff_hours // 24
-    return f"قبل {diff_days} يوم" if is_arabic else f"{diff_days} day{'s' if diff_days != 1 else ''} ago"
-
+    return (
+        f"\u0642\u0628\u0644 {diff_days} \u064a\u0648\u0645"
+        if is_arabic
+        else f"{diff_days} day{'s' if diff_days != 1 else ''} ago"
+    )
 
 def sign_storage_path(storage_path: str, token: str) -> str | None:
     if not storage_path:
@@ -168,8 +240,11 @@ def download_image(image_url: str) -> Image.Image:
 
 
 @app.get("/api/health")
-def healthcheck() -> dict[str, bool]:
-    return {"ok": True}
+def healthcheck() -> dict[str, Any]:
+    return {
+        "ok": True,
+        "build": os.getenv("VERCEL_GIT_COMMIT_SHA", "local"),
+    }
 
 
 @app.post("/api/found/analyze")
@@ -193,7 +268,7 @@ def analyze_found_item(
         raise HTTPException(status_code=502, detail=f"Found-item analysis failed: {error}") from error
 
     confidence = map_confidence(analysis.get("attribute_confidence"))
-    return {
+    response_payload: dict[str, Any] = {
         "title": analysis.get("generated_title") or "Found item",
         "summary": analysis.get("generated_summary") or payload.userDescription.strip(),
         "itemType": analysis.get("subcategory") or "Unknown",
@@ -205,6 +280,93 @@ def analyze_found_item(
         "searchKeywords": analysis.get("search_keywords") or [],
         "confidence": confidence,
         "reviewHint": build_review_hint(payload.language, confidence),
+    }
+
+    if is_arabic_language(payload.language):
+        response_payload["title"] = translate_text_with_pipeline(
+            str(response_payload["title"]),
+            target_language="arabic",
+            pipeline=pipeline,
+        )
+        response_payload["summary"] = translate_text_with_pipeline(
+            str(response_payload["summary"]),
+            target_language="arabic",
+            pipeline=pipeline,
+        )
+        response_payload["itemType"] = translate_text_with_pipeline(
+            str(response_payload["itemType"]),
+            target_language="arabic",
+            pipeline=pipeline,
+        )
+        response_payload["brand"] = translate_text_with_pipeline(
+            str(response_payload["brand"]),
+            target_language="arabic",
+            pipeline=pipeline,
+        )
+        response_payload["primaryColor"] = translate_text_with_pipeline(
+            str(response_payload["primaryColor"]),
+            target_language="arabic",
+            pipeline=pipeline,
+        )
+        response_payload["material"] = translate_text_with_pipeline(
+            str(response_payload["material"]),
+            target_language="arabic",
+            pipeline=pipeline,
+        )
+        response_payload["distinctiveFeatures"] = translate_list_with_pipeline(
+            [str(item) for item in (response_payload["distinctiveFeatures"] or [])],
+            target_language="arabic",
+            pipeline=pipeline,
+        )
+        response_payload["searchKeywords"] = translate_list_with_pipeline(
+            [str(item) for item in (response_payload["searchKeywords"] or [])],
+            target_language="arabic",
+            pipeline=pipeline,
+        )
+        response_payload["reviewHint"] = translate_text_with_pipeline(
+            str(response_payload["reviewHint"]),
+            target_language="arabic",
+            pipeline=pipeline,
+        )
+
+    return response_payload
+
+
+@app.post("/api/found/normalize")
+def normalize_found_post(
+    payload: FoundNormalizeRequest,
+    authorization: str | None = Header(default=None),
+) -> dict[str, Any]:
+    try:
+        token = extract_bearer_token(authorization)
+        verify_user_token(token)
+        pipeline = get_pipeline()
+    except HTTPException:
+        raise
+    except Exception as error:
+        raise HTTPException(status_code=500, detail=f"API setup failed: {error}") from error
+
+    try:
+        normalized = pipeline.build_match_normalization_from_fields(
+            generated_title=payload.title,
+            generated_summary=payload.summary,
+            user_description=payload.description,
+            public_location_label=payload.locationFound,
+            category=payload.category,
+            subcategory=payload.itemType,
+            primary_color=payload.primaryColor,
+            material=payload.material,
+            brand=payload.brand,
+            notable_features=[str(item) for item in payload.distinctiveFeatures],
+            search_keywords=[str(item) for item in payload.searchKeywords],
+        )
+    except Exception as error:
+        raise HTTPException(status_code=502, detail=f"Found-post normalization failed: {error}") from error
+
+    return {
+        "matchTextEn": normalized.get("match_text_en") or "",
+        "matchKeywordsEn": normalized.get("match_keywords_en") or [],
+        "matchLocationEn": normalized.get("match_location_en") or "",
     }
 
 
@@ -226,17 +388,129 @@ def search_lost_item(
     except Exception as error:
         raise HTTPException(status_code=500, detail=f"API setup failed: {error}") from error
 
-    try:
-        result = pipeline.run_lost_item_search(
-            lost_user_id=user_id,
-            lost_description=payload.query.strip(),
-            top_k=payload.topK,
+    original_query = payload.query.strip()
+    normalized_query = pipeline.ensure_english_text(original_query, force=True).strip()
+    search_inputs: list[str] = [normalized_query] if normalized_query else [original_query]
+    if original_query and original_query not in search_inputs:
+        search_inputs.append(original_query)
+    debug_steps: list[dict[str, Any]] = []
+    search_errors: list[dict[str, Any]] = []
+    raw_results: list[dict[str, Any]] = []
+    for query_text in search_inputs:
+        try:
+            result = pipeline.run_lost_item_search(
+                lost_user_id=user_id,
+                lost_description=query_text,
+                top_k=payload.topK,
+            )
+            raw_results.append(result)
+
+            if hasattr(pipeline, "get_last_search_debug") and callable(getattr(pipeline, "get_last_search_debug")):
+                try:
+                    debug_steps.append(
+                        {
+                            "query": query_text,
+                            "stage": pipeline.get_last_search_debug(),
+                        }
+                    )
+                except Exception:
+                    pass
+            continue
+        except Exception as error:  # pragma: no cover - network/model failures vary
+            search_errors.append(
+                {
+                    "query": query_text,
+                    "error": str(error),
+                    "traceback": traceback.format_exc(limit=4),
+                }
+            )
+
+        # Fallback path: keep the API responsive instead of surfacing a hard 502 to mobile users.
+        try:
+            fallback_matches = pipeline.search_found_items(
+                lost_description=query_text,
+                top_k=payload.topK,
+                threshold=0.35,
+            )
+            enriched_fallback_matches: list[dict[str, Any]] = []
+            for match in fallback_matches:
+                finder = {}
+                try:
+                    finder = pipeline.db.users.get(str(match.get("user_id") or ""), {})
+                except Exception:
+                    finder = {}
+
+                fallback_item = dict(match)
+                fallback_item["finder_name"] = str(finder.get("name") or fallback_item.get("user_id") or "Community member")
+                fallback_item["finder_email"] = str(finder.get("email") or "")
+                fallback_item["explanation"] = (
+                    fallback_item.get("explanation")
+                    or "Possible match found by fallback ranking. Verify distinctive details with the finder."
+                )
+                enriched_fallback_matches.append(fallback_item)
+
+            raw_results.append(
+                {
+                    "lost_query": {
+                        "id": f"fallback-{int(datetime.now(UTC).timestamp())}",
+                        "user_id": user_id,
+                        "description": query_text,
+                        "created_at": datetime.now(UTC).isoformat(),
+                    },
+                    "matches": enriched_fallback_matches,
+                }
+            )
+        except Exception as fallback_error:
+            search_errors.append(
+                {
+                    "query": query_text,
+                    "error": f"fallback_failed: {fallback_error}",
+                    "traceback": traceback.format_exc(limit=4),
+                }
+            )
+
+    if not raw_results:
+        raw_results.append(
+            {
+                "lost_query": {
+                    "id": f"run-{int(datetime.now(UTC).timestamp())}",
+                    "user_id": user_id,
+                    "description": original_query,
+                    "created_at": datetime.now(UTC).isoformat(),
+                },
+                "matches": [],
+            }
         )
-    except Exception as error:  # pragma: no cover - network/model failures vary
-        raise HTTPException(status_code=502, detail=f"Lost-item search failed: {error}") from error
+
+    primary_result = raw_results[0] if raw_results else {"lost_query": {}}
+    merged_matches_by_id: dict[str, dict[str, Any]] = {}
+    for result in raw_results:
+        for match in result.get("matches", []):
+            match_id = str(match.get("id") or "")
+            if not match_id:
+                continue
+            existing = merged_matches_by_id.get(match_id)
+            if not existing or float(match.get("score", 0.0)) > float(existing.get("score", 0.0)):
+                merged_matches_by_id[match_id] = match
+
+    merged_ranked_matches = sorted(
+        merged_matches_by_id.values(),
+        key=lambda entry: float(entry.get("score", 0.0)),
+        reverse=True,
+    )[: payload.topK]
+
+    debug_payload: dict[str, Any] = {
+        "normalized_query": normalized_query,
+        "search_inputs": search_inputs,
+        "retrieved_candidate_count": len(merged_matches_by_id),
+        "ranked_candidate_count": len(merged_ranked_matches),
+        "top_scores": [float(item.get("score", 0.0)) for item in merged_ranked_matches[:8]],
+        "per_query": debug_steps,
+        "errors": search_errors,
+    }
 
     matches: list[dict[str, Any]] = []
-    for match in result.get("matches", []):
+    for match in merged_ranked_matches:
         score = float(match.get("score", 0.0))
         confidence = map_confidence(match.get("confidence_label"))
         signed_image = sign_storage_path(str(match.get("primary_image_path") or ""), token)
@@ -263,9 +537,33 @@ def search_lost_item(
             }
         )
 
-    return {
-        "id": result.get("lost_query", {}).get("id") or f"run-{int(datetime.now(UTC).timestamp())}",
-        "query": payload.query.strip(),
-        "createdAtLabel": "الآن" if str(payload.language).lower().startswith("ar") else "Just now",
+    if is_arabic_language(payload.language):
+        for match in matches:
+            item = match["item"]
+            item["title"] = translate_text_with_pipeline(
+                str(item.get("title") or ""),
+                target_language="arabic",
+                pipeline=pipeline,
+            )
+            item["description"] = translate_text_with_pipeline(
+                str(item.get("description") or ""),
+                target_language="arabic",
+                pipeline=pipeline,
+            )
+            item["location"] = translate_text_with_pipeline(
+                str(item.get("location") or ""),
+                target_language="arabic",
+                pipeline=pipeline,
+            )
+            match["reason"] = translate_text_with_pipeline(
+                str(match.get("reason") or ""),
+                target_language="arabic",
+                pipeline=pipeline,
+            )    response_payload: dict[str, Any] = {
+        "id": primary_result.get("lost_query", {}).get("id") or f"run-{int(datetime.now(UTC).timestamp())}",
+        "query": original_query,
+        "createdAtLabel": "\u0627\u0644\u0622\u0646" if str(payload.language).lower().startswith("ar") else "Just now",
         "matches": matches,
+        "debug": debug_payload,
     }
+    return response_payload
