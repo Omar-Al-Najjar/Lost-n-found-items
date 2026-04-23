@@ -18,6 +18,7 @@ type ChatbotScreenProps = {
   likelyMatches: AiMatchCandidate[];
   onOpenFoundFlow: () => void;
   onOpenSearch: () => void;
+  onOpenSearchRun: (search: AiSearchRun) => void;
   onOpenMatch: (item: HomeFeedItem) => void;
 };
 
@@ -30,6 +31,7 @@ export function ChatbotScreen({
   likelyMatches,
   onOpenFoundFlow,
   onOpenSearch,
+  onOpenSearchRun,
   onOpenMatch,
 }: ChatbotScreenProps) {
   const { headerAnimatedStyle, getItemAnimatedStyle } = useProfilePageMotion();
@@ -97,7 +99,7 @@ export function ChatbotScreen({
               <Pressable
                 key={search.id}
                 style={[styles.searchCard, { backgroundColor: palette.card, borderColor: palette.border }]}
-                onPress={onOpenSearch}
+                onPress={() => onOpenSearchRun(search)}
               >
                 <Text style={[styles.searchQuery, { color: palette.textPrimary }, isArabic && styles.textRight]}>{search.query}</Text>
                 <Text style={[styles.searchMeta, { color: palette.textSecondary }, isArabic && styles.textRight]}>

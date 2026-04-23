@@ -1,7 +1,9 @@
 import { Ionicons } from '@expo/vector-icons';
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
+import { Alert } from 'react-native';
 import { Animated, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { checkAiApiHealth } from '../lib/aiAssistant';
 
 import { AmbientBackground } from '../components/AmbientBackground';
 import { HomeCopy } from '../constants/homeCopy';
@@ -53,10 +55,16 @@ export function SearchScreen({
   const [filter, setFilter] = useState<'all' | 'lost' | 'found'>('all');
   const [category, setCategory] = useState<'all' | HomeFeedItem['category']>('all');
   const [isRunningAiSearch, setIsRunningAiSearch] = useState(false);
+  const [isCheckingHealth, setIsCheckingHealth] = useState(false);
   const { headerAnimatedStyle, getItemAnimatedStyle } = useProfilePageMotion();
   const activeCategoryTextColor = getReadableChipTextColor(palette.textPrimary);
 
   const isAssistantMode = mode === 'assistant';
+
+  useEffect(() => {
+    if (!isAssistantMode) return;
+    setQuery(latestAiSearch?.query ?? '');
+  }, [isAssistantMode, latestAiSearch?.id]);
 
   const filteredItems = useMemo(() => {
     return items.filter((item) => {
@@ -78,6 +86,7 @@ export function SearchScreen({
 
   const likelyMatches = latestAiSearch?.matches.filter((match) => match.grouping === 'likely') ?? [];
   const possibleMatches = latestAiSearch?.matches.filter((match) => match.grouping === 'possible') ?? [];
+  const scoreTrace = latestAiSearch?.debug?.topScores ?? [];
 
   const handleRunAiSearch = async () => {
     if (!query.trim() || isRunningAiSearch) {
@@ -87,8 +96,32 @@ export function SearchScreen({
     try {
       setIsRunningAiSearch(true);
       await onRunAiSearch(query.trim());
+    } catch (error) {
+      const fallback = isArabic ? 'فشل الاتصال بخدمة المطابقة. تحقق من الإنترنت ثم حاول مرة أخرى.' : 'Failed to reach match service. Check your network and try again.';
+      const message = error instanceof Error && error.message ? error.message : fallback;
+      Alert.alert(copy.appName, message);
     } finally {
       setIsRunningAiSearch(false);
+    }
+  };
+
+  const handleHealthCheck = async () => {
+    if (isCheckingHealth) return;
+    try {
+      setIsCheckingHealth(true);
+      const result = await checkAiApiHealth();
+      if (result.ok) {
+        Alert.alert(copy.appName, isArabic ? `الاتصال ناجح:\n${result.url}` : `Connection OK:\n${result.url}`);
+      } else {
+        Alert.alert(
+          copy.appName,
+          isArabic
+            ? `فشل الاتصال:\n${result.url}\n${result.detail || ''}`
+            : `Connection failed:\n${result.url}\n${result.detail || ''}`
+        );
+      }
+    } finally {
+      setIsCheckingHealth(false);
     }
   };
 
@@ -136,9 +169,17 @@ export function SearchScreen({
             onChangeText={setQuery}
             placeholder={isAssistantMode ? copy.aiSearchTitle : copy.searchPlaceholder}
             placeholderTextColor={palette.textSecondary}
-            style={[styles.searchInput, { color: palette.textPrimary, textAlign: isArabic ? 'right' : 'left' }]}
+            style={[
+              styles.searchInput,
+              {
+                color: palette.textPrimary,
+                textAlign: isArabic ? 'right' : 'left',
+                writingDirection: isArabic ? 'rtl' : 'ltr',
+              },
+            ]}
             autoFocus={isAssistantMode}
             multiline={isAssistantMode}
+            keyboardType="default"
           />
         </View>
 
@@ -161,6 +202,21 @@ export function SearchScreen({
           >
             <Text style={styles.aiButtonText}>
               {isRunningAiSearch ? (isArabic ? 'جارٍ البحث...' : 'Searching...') : copy.aiSearchAction}
+            </Text>
+          </Pressable>
+          <Pressable
+            style={[styles.aiHealthButton, { borderColor: palette.border, opacity: isCheckingHealth ? 0.55 : 1 }]}
+            onPress={handleHealthCheck}
+            disabled={isCheckingHealth}
+          >
+            <Text style={[styles.aiHealthButtonText, { color: palette.textSecondary }]}>
+              {isCheckingHealth
+                ? isArabic
+                  ? 'جارٍ فحص الاتصال...'
+                  : 'Checking connection...'
+                : isArabic
+                  ? 'فحص اتصال خدمة الذكاء'
+                  : 'Check AI service connection'}
             </Text>
           </Pressable>
         </View>
@@ -331,6 +387,21 @@ export function SearchScreen({
                 </Text>
               </View>
             ) : null}
+
+            <View style={[styles.scoreTraceCard, { backgroundColor: palette.card, borderColor: palette.border }]}>
+              <Text style={[styles.scoreTraceTitle, { color: palette.textPrimary }, isArabic && styles.textRight]}>
+                {copy.aiSearchScoreTraceTitle}
+              </Text>
+              {scoreTrace.length > 0 ? (
+                <Text style={[styles.scoreTraceText, { color: palette.textSecondary }, isArabic && styles.textRight]}>
+                  {scoreTrace.map((score) => `${Math.round(score * 100)}%`).join('  •  ')}
+                </Text>
+              ) : (
+                <Text style={[styles.scoreTraceText, { color: palette.textSecondary }, isArabic && styles.textRight]}>
+                  {copy.aiSearchScoreTraceEmpty}
+                </Text>
+              )}
+            </View>
           </View>
         ) : null}
 
@@ -519,6 +590,18 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '800',
   },
+  aiHealthButton: {
+    minHeight: 40,
+    borderRadius: 12,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 12,
+  },
+  aiHealthButtonText: {
+    fontSize: 12,
+    fontWeight: '700',
+  },
   filterRow: {
     flexDirection: 'row',
     gap: 8,
@@ -624,6 +707,21 @@ const styles = StyleSheet.create({
     color: '#33591B',
     fontSize: 12,
     fontWeight: '800',
+  },
+  scoreTraceCard: {
+    borderWidth: 1,
+    borderRadius: 16,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    gap: 4,
+  },
+  scoreTraceTitle: {
+    fontSize: 13,
+    fontWeight: '800',
+  },
+  scoreTraceText: {
+    fontSize: 12,
+    lineHeight: 18,
   },
   card: {
     borderWidth: 1,

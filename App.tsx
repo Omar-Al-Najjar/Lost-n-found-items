@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Alert, StatusBar, StyleSheet, useColorScheme, View } from 'react-native';
+import { Alert, LogBox, StatusBar, StyleSheet, useColorScheme, View } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { NavigationContainer } from '@react-navigation/native';
@@ -34,7 +34,12 @@ import {
   upsertCurrentUserProfile,
   updatePostStatus,
 } from './src/lib/supabaseApp';
-import { analyzeFoundItemWithAi, isAiAssistantConfigured, searchPotentialFoundMatches } from './src/lib/aiAssistant';
+import {
+  analyzeFoundItemWithAi,
+  isAiAssistantConfigured,
+  normalizeFoundPostWithAi,
+  searchPotentialFoundMatches,
+} from './src/lib/aiAssistant';
 import { AddPostScreen } from './src/screens/AddPostScreen';
 import { ChatbotScreen } from './src/screens/ChatbotScreenV2';
 import { ConversationsScreen } from './src/screens/ConversationsScreen';
@@ -80,6 +85,13 @@ type AuthStackScreenProps<T extends keyof AuthStackParamList> = NativeStackScree
   AuthStackParamList,
   T
 >;
+
+if (__DEV__) {
+  LogBox.ignoreLogs([
+    'props.log.getAvailableStack().some is not a function',
+    'An error was thrown when attempting to render log messages via LogBox',
+  ]);
+}
 
 export default function App() {
   const systemColorScheme = useColorScheme();
@@ -396,14 +408,14 @@ export default function App() {
 
   const openConversationFromPost = async (post: HomeFeedItem) => {
     if (!currentUserId) {
-      Alert.alert(t.appName, isArabic ? 'يرجى تسجيل الدخول أولاً.' : 'Please sign in first.');
+      Alert.alert(t.appName, isArabic ? '???? ????? ?????? ?????.' : 'Please sign in first.');
       return;
     }
 
     if (post.userId === currentUserId) {
       Alert.alert(
         t.appName,
-        isArabic ? 'لا يمكنك مراسلة نفسك على بلاغك.' : 'You cannot message yourself about your own post.'
+        isArabic ? '?? ????? ?????? ???? ??? ?????.' : 'You cannot message yourself about your own post.'
       );
       return;
     }
@@ -429,7 +441,7 @@ export default function App() {
     if (!existingChat) {
       Alert.alert(
         t.appName,
-        isArabic ? 'لا توجد محادثة مرتبطة بهذا البلاغ بعد.' : 'There is no conversation for this report yet.'
+        isArabic ? '?? ???? ?????? ?????? ???? ?????? ???.' : 'There is no conversation for this report yet.'
       );
       return;
     }
@@ -439,11 +451,38 @@ export default function App() {
 
   const onSubmitPost = async (post: FeedPost) => {
     if (!currentUserId) {
-      Alert.alert(t.appName, isArabic ? 'يرجى تسجيل الدخول أولاً.' : 'Please sign in first.');
+      Alert.alert(t.appName, isArabic ? '???? ????? ?????? ?????.' : 'Please sign in first.');
       return;
     }
 
     try {
+      let matchTextEn: string | null = null;
+      let matchKeywordsEn: string[] = [];
+      let matchLocationEn: string | null = null;
+
+      if (post.type === 'found' && aiConfigured) {
+        try {
+          const normalized = await normalizeFoundPostWithAi({
+            title: post.title,
+            summary: post.description,
+            description: post.description,
+            locationFound: post.location,
+            category: post.category,
+            itemType: post.title,
+            primaryColor: '',
+            material: '',
+            brand: '',
+            distinctiveFeatures: [],
+            searchKeywords: [],
+          });
+          matchTextEn = normalized.matchTextEn || null;
+          matchKeywordsEn = normalized.matchKeywordsEn || [];
+          matchLocationEn = normalized.matchLocationEn || null;
+        } catch (normalizationError) {
+          console.warn('Found-post normalization failed, continuing without normalization fields.', normalizationError);
+        }
+      }
+
       await createPost({
         userId: currentUserId,
         type: post.type,
@@ -452,6 +491,9 @@ export default function App() {
         location: post.location,
         category: post.category,
         image: post.image ?? null,
+        matchTextEn,
+        matchKeywordsEn,
+        matchLocationEn,
       });
       await refreshAppData();
       setRoute('homeFeed');
@@ -496,11 +538,38 @@ export default function App() {
     aiDraft: AiFoundAnalysisDraft;
   }) => {
     if (!currentUserId) {
-      Alert.alert(t.appName, isArabic ? 'يرجى تسجيل الدخول أولاً.' : 'Please sign in first.');
+      Alert.alert(t.appName, isArabic ? '???? ????? ?????? ?????.' : 'Please sign in first.');
       return;
     }
 
     try {
+      let matchTextEn: string | null = null;
+      let matchKeywordsEn: string[] = [];
+      let matchLocationEn: string | null = null;
+
+      if (aiConfigured) {
+        try {
+          const normalized = await normalizeFoundPostWithAi({
+            title: payload.title,
+            summary: payload.aiDraft.analysis.summary || payload.description,
+            description: payload.description,
+            locationFound: payload.aiDraft.location,
+            category: payload.category,
+            itemType: payload.aiDraft.analysis.itemType || '',
+            primaryColor: payload.aiDraft.analysis.primaryColor || '',
+            material: payload.aiDraft.analysis.material || '',
+            brand: payload.aiDraft.analysis.brand || '',
+            distinctiveFeatures: payload.aiDraft.analysis.distinctiveFeatures || [],
+            searchKeywords: payload.aiDraft.analysis.searchKeywords || [],
+          });
+          matchTextEn = normalized.matchTextEn || null;
+          matchKeywordsEn = normalized.matchKeywordsEn || [];
+          matchLocationEn = normalized.matchLocationEn || null;
+        } catch (normalizationError) {
+          console.warn('AI-reviewed found post normalization failed, continuing without normalization fields.', normalizationError);
+        }
+      }
+
       await createPost({
         userId: currentUserId,
         type: 'found',
@@ -511,6 +580,9 @@ export default function App() {
         image: payload.aiDraft.image,
         aiAnalysis: payload.aiDraft.analysis,
         existingImageStoragePath: payload.aiDraft.draftImageStoragePath,
+        matchTextEn,
+        matchKeywordsEn,
+        matchLocationEn,
       });
       setPendingFoundDraft(null);
       await refreshAppData();
@@ -526,6 +598,14 @@ export default function App() {
     setActiveAiSearch(run);
     setAiSearchHistory((current) => [run, ...current.filter((entry) => entry.id !== run.id)].slice(0, 6));
     return run;
+  };
+
+  const handleOpenAiSearchRun = (run: AiSearchRun) => {
+    setActiveAiSearch(run);
+    setAiSearchHistory((current) => [run, ...current.filter((entry) => entry.id !== run.id)].slice(0, 6));
+    setSearchBackRoute('chatbot');
+    setSearchMode('assistant');
+    setRoute('search');
   };
 
   const handleMarkAllNotificationsRead = async () => {
@@ -631,7 +711,7 @@ export default function App() {
   const handleSignup = async ({ email, password, displayName, avatarImage }: AuthCredentials) => {
     try {
       const trimmedName = displayName?.trim() ?? '';
-      const fallbackName = email.split('@')[0] || (isArabic ? 'المستخدم' : 'User');
+      const fallbackName = email.split('@')[0] || (isArabic ? '????????' : 'User');
       const resolvedDisplayName = trimmedName || fallbackName;
       const { data, error } = await supabase.auth.signUp({
         email,
@@ -663,26 +743,12 @@ export default function App() {
             getErrorMessage(
               profileError,
               isArabic
-                ? 'تم إنشاء الحساب لكن تعذر حفظ بيانات الملف الشخصي بالكامل.'
+                ? '?? ????? ?????? ??? ???? ??? ?????? ????? ?????? ???????.'
                 : 'Account created, but profile details were not fully saved.'
             )
           );
         }
-      } else if (avatarImage) {
-        Alert.alert(
-          t.appName,
-          isArabic
-            ? 'تم إنشاء الحساب. أضف صورة الملف الشخصي بعد تسجيل الدخول.'
-            : 'Account created. Add your profile photo after you sign in.'
-        );
       }
-
-      Alert.alert(
-        t.appName,
-        isArabic
-          ? 'تم إنشاء الحساب. إذا كان تأكيد البريد مفعلًا في Supabase، افحص بريدك ثم سجّل الدخول.'
-          : 'Your account was created. If email confirmation is enabled in Supabase, check your inbox and then sign in.'
-      );
     } catch (error) {
       Alert.alert(t.appName, getErrorMessage(error, 'Signup failed.'));
     }
@@ -705,8 +771,7 @@ export default function App() {
 
       const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ['images'],
-        allowsEditing: true,
-        aspect: [1, 1],
+        allowsEditing: false,
         quality: 0.9,
       });
 
@@ -749,7 +814,6 @@ export default function App() {
     setIsUpdatingAvatar(false);
   };
 
-  const unreadNotificationsCount = notifications.filter((item) => item.unread).length;
   const aiConfigured = isAiAssistantConfigured();
   const visibleAiSearch = activeAiSearch ?? aiSearchHistory[0] ?? null;
   const latestAiMatches = visibleAiSearch?.matches.slice(0, 3) ?? [];
@@ -787,6 +851,7 @@ export default function App() {
               setSearchMode('assistant');
               setRoute('search');
             }}
+            onOpenSearchRun={handleOpenAiSearchRun}
             onOpenMatch={(item) => openItemDetails(item, 'chatbot')}
           />
         );
@@ -846,8 +911,6 @@ export default function App() {
             setLanguage={setLanguage}
             activeChatsCount={chats.length}
             myReportsCount={reports.length}
-            unreadNotificationsCount={unreadNotificationsCount}
-            onOpenNotifications={() => setRoute('notifications')}
             onOpenMyReports={() => {
               setHighlightedReportId(null);
               setRoute('myReports');
@@ -910,7 +973,7 @@ export default function App() {
             palette={palette}
             isArabic={isArabic}
             onBack={() => setRoute('addPost')}
-            onAnalyzePost={handleAnalyzeFoundPost}
+            onSubmitPost={onSubmitPost}
           />
         );
       case 'foundAiReview':
@@ -1013,8 +1076,6 @@ export default function App() {
                       copy={authCopy}
                       palette={palette}
                       isArabic={isArabic}
-                      isDark={isDark}
-                      onToggleTheme={toggleTheme}
                       onSubmit={handleLogin}
                       onSwitchToSignup={() => {
                         navigation.navigate('Signup');
@@ -1028,8 +1089,6 @@ export default function App() {
                       copy={authCopy}
                       palette={palette}
                       isArabic={isArabic}
-                      isDark={isDark}
-                      onToggleTheme={toggleTheme}
                       onSubmit={handleSignup}
                       onSwitchToLogin={() => {
                         navigation.goBack();
@@ -1076,3 +1135,5 @@ const styles = StyleSheet.create({
     flex: 1,
   },
 });
+
+
