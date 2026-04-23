@@ -8,8 +8,6 @@ type LoginScreenProps = {
   copy: AuthCopy;
   palette: Palette;
   isArabic: boolean;
-  isDark: boolean;
-  onToggleTheme: () => void;
   onSubmit: (credentials: AuthCredentials) => void;
   onSwitchToSignup: () => void;
 };

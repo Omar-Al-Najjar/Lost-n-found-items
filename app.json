@@ -3,8 +3,18 @@
     "name": "Lost and Found",
     "slug": "lost-and-found-app",
     "scheme": "lostandfoundapp",
+    "icon": "./assets/logo/FinalLogo.png",
+    "splash": {
+      "image": "./assets/logo/FinalLogo.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#F5F1E8"
+    },
     "android": {
-      "package": "com.anonymous.lostandfoundapp"
+      "package": "com.anonymous.lostandfoundapp",
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/logo/FinalLogo.png",
+        "backgroundColor": "#F5F1E8"
+      }
     },
     "plugins": [
       "expo-font"

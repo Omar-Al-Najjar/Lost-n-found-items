@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import time
 from datetime import UTC, datetime
 from functools import lru_cache
 from io import BytesIO
@@ -122,6 +123,96 @@ def map_category(value: str | None) -> str:
 
 def is_arabic_language(language: str | None) -> bool:
     return str(language or "").strip().lower().startswith("ar")
+
+
+def is_transient_ai_overload_error(message: str) -> bool:
+    low = str(message or "").lower()
+    return (
+        "engine_overloaded_error" in low
+        or "error code: 429" in low
+        or ("429" in low and "overload" in low)
+        or "rate limit" in low
+        or "temporarily unavailable" in low
+    )
+
+
+def build_fallback_found_analysis(
+    payload: FoundAnalyzeRequest,
+    pipeline: LostFoundPipeline,
+) -> dict[str, Any]:
+    is_arabic = is_arabic_language(payload.language)
+    description = str(payload.userDescription or "").strip()
+    lowered = description.lower()
+
+    keyword_map = [
+        ("wallet", "wallet"),
+        ("phone", "phone"),
+        ("iphone", "phone"),
+        ("keys", "keys"),
+        ("key", "keys"),
+        ("backpack", "backpack"),
+        ("bag", "bag"),
+        ("document", "documents"),
+        ("id", "documents"),
+        ("passport", "documents"),
+        ("earbuds", "earbuds"),
+        ("airpods", "earbuds"),
+        ("نظارة", "sunglasses"),
+        ("مفاتيح", "keys"),
+        ("هاتف", "phone"),
+        ("محفظ", "wallet"),
+        ("حقيبة", "bag"),
+        ("وثيقة", "documents"),
+    ]
+
+    item_type = "Unknown"
+    for needle, value in keyword_map:
+        if needle in lowered:
+            item_type = value
+            break
+
+    category = pipeline.infer_category(item_type=item_type, raw_category="other", text=description)
+
+    raw_features = [
+        token.strip()
+        for token in description.replace("\n", ",").split(",")
+        if token.strip()
+    ]
+    distinctive_features = raw_features[:4]
+
+    keyword_payload = {
+        "subcategory": item_type,
+        "category": category,
+        "primary_color": "Unknown",
+        "material": "Unknown",
+        "brand": "Unknown",
+        "notable_features": distinctive_features,
+        "search_keywords": distinctive_features,
+    }
+    search_keywords = pipeline.expand_search_keywords(keyword_payload)[:12]
+
+    if is_arabic:
+        title = "عنصر معثور عليه"
+        summary = description or "تم إنشاء ملخص مبدئي لأن خدمة الذكاء كانت مشغولة."
+        review_hint = "تم إنشاء تحليل مبدئي لأن خدمة الذكاء مشغولة. راجع التفاصيل وعدّلها قبل النشر."
+    else:
+        title = f"Found {item_type}" if item_type != "Unknown" else "Found item"
+        summary = description or "A draft summary was generated because the AI service is currently busy."
+        review_hint = "A draft analysis was generated because the AI service is busy. Review details before publishing."
+
+    return {
+        "generated_title": title,
+        "generated_summary": summary,
+        "subcategory": item_type,
+        "category": category,
+        "brand": "Unknown",
+        "primary_color": "Unknown",
+        "material": "Unknown",
+        "notable_features": distinctive_features,
+        "search_keywords": search_keywords,
+        "attribute_confidence": "low",
+        "review_hint": review_hint,
+    }
 
 
 def translate_text_with_pipeline(
@@ -265,9 +356,30 @@ def analyze_found_item(
 
     try:
         image = download_image(payload.draftImageSignedUrl)
-        analysis = pipeline.analyze_found_item(image=image, user_description=payload.userDescription.strip())
-    except Exception as error:  # pragma: no cover - network/model failures vary
-        raise HTTPException(status_code=502, detail=f"Found-item analysis failed: {error}") from error
+    except Exception as error:
+        raise HTTPException(status_code=502, detail=f"Found-item image fetch failed: {error}") from error
+
+    analysis: dict[str, Any] | None = None
+    used_fallback = False
+    last_error: Exception | None = None
+    for attempt in range(3):
+        try:
+            analysis = pipeline.analyze_found_item(image=image, user_description=payload.userDescription.strip())
+            break
+        except Exception as error:  # pragma: no cover - network/model failures vary
+            last_error = error
+            message = str(error)
+            if is_transient_ai_overload_error(message):
+                if attempt < 2:
+                    time.sleep(0.9 * (attempt + 1))
+                    continue
+                analysis = build_fallback_found_analysis(payload, pipeline)
+                used_fallback = True
+                break
+            raise HTTPException(status_code=502, detail=f"Found-item analysis failed: {error}") from error
+
+    if analysis is None:
+        raise HTTPException(status_code=502, detail=f"Found-item analysis failed: {last_error or 'Unknown error'}")
 
     confidence = map_confidence(analysis.get("attribute_confidence"))
     response_payload: dict[str, Any] = {
@@ -281,10 +393,10 @@ def analyze_found_item(
         "distinctiveFeatures": analysis.get("notable_features") or [],
         "searchKeywords": analysis.get("search_keywords") or [],
         "confidence": confidence,
-        "reviewHint": build_review_hint(payload.language, confidence),
+        "reviewHint": analysis.get("review_hint") or build_review_hint(payload.language, confidence),
     }
 
-    if is_arabic_language(payload.language):
+    if is_arabic_language(payload.language) and not used_fallback:
         response_payload["title"] = translate_text_with_pipeline(
             str(response_payload["title"]),
             target_language="arabic",

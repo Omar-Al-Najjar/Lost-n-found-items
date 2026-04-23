@@ -28,8 +28,6 @@ type AuthFormScreenProps = {
   copy: AuthCopy;
   palette: Palette;
   isArabic: boolean;
-  isDark: boolean;
-  onToggleTheme: () => void;
   onSubmit: (credentials: AuthCredentials) => void;
   onSwitchMode: () => void;
 };
@@ -39,8 +37,6 @@ export function AuthFormScreen({
   copy,
   palette,
   isArabic,
-  isDark,
-  onToggleTheme,
   onSubmit,
   onSwitchMode,
 }: AuthFormScreenProps) {
@@ -73,8 +69,7 @@ export function AuthFormScreen({
 
       const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ['images'],
-        allowsEditing: true,
-        aspect: [1, 1],
+        allowsEditing: false,
         quality: 0.9,
       });
 
@@ -114,35 +109,13 @@ export function AuthFormScreen({
 
       <KeyboardAvoidingView style={styles.keyboardWrap} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         <Animated.View style={getItemAnimatedStyle(0)}>
-          <Pressable
-            style={[styles.themeButton, { backgroundColor: palette.card, borderColor: palette.border }]}
-            onPress={onToggleTheme}
-          >
-            <Ionicons name={isDark ? 'sunny-outline' : 'moon-outline'} size={20} color={palette.textPrimary} />
-          </Pressable>
-        </Animated.View>
-
-        <Animated.View style={getItemAnimatedStyle(1)}>
           <ScrollView
             showsVerticalScrollIndicator={false}
             contentContainerStyle={styles.scrollContent}
             keyboardShouldPersistTaps="handled"
           >
           <View style={styles.logoBlock}>
-            <View style={[styles.eyebrowPill, { backgroundColor: palette.cardMuted }]}>
-              <Ionicons
-                name={mode === 'login' ? 'return-down-forward-outline' : 'person-add-outline'}
-                size={16}
-                color={palette.textPrimary}
-              />
-              <Text style={[styles.eyebrowText, { color: palette.textPrimary }]}>
-                {mode === 'login' ? copy.login : copy.signup}
-              </Text>
-            </View>
-            <View style={[styles.logoCircle, { backgroundColor: palette.textPrimary }]}>
-              <View style={[styles.logoGlow, { backgroundColor: palette.accent }]} />
-              <Text style={[styles.logoText, { color: palette.accentStrong }]}>L&F</Text>
-            </View>
+            <Image source={require('../../assets/logo/FinalLogo.png')} style={styles.logoImage} resizeMode="contain" />
             <Text style={[styles.title, { color: palette.textPrimary }]}>
               {mode === 'login' ? copy.loginTitle : copy.signupTitle}
             </Text>
@@ -158,13 +131,6 @@ export function AuthFormScreen({
                 <Text style={[styles.cardSubtitle, { color: palette.textSecondary }, isArabic && styles.textRight]}>
                   {mode === 'login' ? copy.login : copy.signup}
                 </Text>
-              </View>
-              <View style={[styles.cardIconWrap, { backgroundColor: palette.cardMuted }]}>
-                <Ionicons
-                  name={mode === 'login' ? 'log-in-outline' : 'sparkles-outline'}
-                  size={20}
-                  color={palette.textPrimary}
-                />
               </View>
             </View>
 
@@ -242,8 +208,6 @@ export function AuthFormScreen({
                 onToggleSecure={() => setShowConfirmPassword((value) => !value)}
               />
             )}
-
-            {mode === 'login' && <Text style={[styles.linkText, { color: palette.accent }]}>{copy.forgotPassword}</Text>}
 
             <Pressable
               style={[styles.primaryButton, { backgroundColor: palette.accent, opacity: canSubmit ? 1 : 0.55 }]}
@@ -342,66 +306,20 @@ const styles = StyleSheet.create({
     paddingHorizontal: 22,
     paddingVertical: 24,
   },
-  themeButton: {
-    position: 'absolute',
-    top: 12,
-    right: 24,
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    borderWidth: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    zIndex: 2,
-  },
   logoBlock: {
     alignItems: 'center',
-    marginBottom: 28,
+    marginTop: 8,
+    marginBottom: 8,
   },
-  eyebrowPill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 999,
-    marginBottom: 14,
-  },
-  eyebrowText: {
-    fontSize: 12,
-    fontWeight: '800',
-  },
-  logoCircle: {
-    width: 96,
-    height: 96,
-    borderRadius: 28,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 16,
-    overflow: 'hidden',
-    shadowColor: '#9FBF2A',
-    shadowOffset: { width: 0, height: 14 },
-    shadowOpacity: 0.22,
-    shadowRadius: 20,
-    elevation: 8,
-  },
-  logoGlow: {
-    position: 'absolute',
-    width: 110,
-    height: 110,
-    borderRadius: 999,
-    opacity: 0.22,
-    top: -12,
-    right: -16,
-  },
-  logoText: {
-    fontSize: 30,
-    fontWeight: '800',
+  logoImage: {
+    width: 202,
+    height: 149,
+    marginBottom: 1,
   },
   title: {
     fontSize: 30,
     fontWeight: '800',
-    marginBottom: 6,
+    marginBottom: 2,
     textAlign: 'center',
   },
   subtitle: {
@@ -435,13 +353,6 @@ const styles = StyleSheet.create({
     marginTop: 4,
     fontSize: 12,
   },
-  cardIconWrap: {
-    width: 40,
-    height: 40,
-    borderRadius: 14,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
   fieldWrap: {
     gap: 8,
   },
@@ -464,10 +375,6 @@ const styles = StyleSheet.create({
   },
   eyeSpacer: {
     width: 20,
-  },
-  linkText: {
-    fontSize: 14,
-    marginTop: 2,
   },
   avatarPickerBlock: {
     gap: 8,
@@ -552,3 +459,6 @@ const styles = StyleSheet.create({
     textAlign: 'right',
   },
 });
+
+
+

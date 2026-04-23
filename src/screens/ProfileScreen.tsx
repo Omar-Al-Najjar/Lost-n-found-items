@@ -22,8 +22,6 @@ type ProfileScreenProps = {
   setLanguage: (lang: Language) => void;
   activeChatsCount: number;
   myReportsCount: number;
-  unreadNotificationsCount: number;
-  onOpenNotifications: () => void;
   onOpenMyReports: () => void;
   isUpdatingAvatar?: boolean;
   onEditAvatar: () => void;
@@ -45,8 +43,6 @@ export function ProfileScreen({
   setLanguage,
   activeChatsCount,
   myReportsCount,
-  unreadNotificationsCount,
-  onOpenNotifications,
   onOpenMyReports,
   isUpdatingAvatar = false,
   onEditAvatar,
@@ -464,34 +460,6 @@ export function ProfileScreen({
           <View style={[styles.postsHeader, isArabic && styles.rightAligned]}>
             <Text style={[styles.postsTitle, { color: palette.textPrimary }]}>{copy.shortcutsTitle}</Text>
           </View>
-
-          <Pressable
-            style={[styles.shortcutCard, { backgroundColor: palette.card, borderColor: palette.border }]}
-            onPress={onOpenNotifications}
-          >
-            <View style={[styles.shortcutTopRow, isArabic && styles.rowReverse]}>
-              <View style={[styles.shortcutIconWrap, { backgroundColor: shortcutIconBackground }]}>
-                <Ionicons name="notifications-outline" size={22} color={palette.textPrimary} />
-              </View>
-              <View style={[styles.shortcutCountPill, { backgroundColor: palette.accent }]}>
-                <Text style={[styles.shortcutCountText, { color: accentInk }]}>
-                  {unreadNotificationsCount} {copy.unreadCountLabel}
-                </Text>
-              </View>
-            </View>
-            <Text style={[styles.postTitle, { color: palette.textPrimary }, isArabic && styles.textRight]}>
-              {copy.notificationsShortcutTitle}
-            </Text>
-            <Text style={[styles.postDescription, { color: palette.textSecondary }, isArabic && styles.textRight]}>
-              {copy.notificationsShortcutDescription}
-            </Text>
-            <View style={[styles.shortcutFooter, isArabic && styles.rowReverse]}>
-              <Text style={[styles.shortcutMeta, { color: palette.textSecondary }]}>
-                {unreadNotificationsCount} {copy.unreadCountLabel}
-              </Text>
-              <Text style={[styles.shortcutLink, { color: shortcutLinkColor }]}>{copy.openShortcut}</Text>
-            </View>
-          </Pressable>
 
           <Pressable
             style={[styles.shortcutCard, { backgroundColor: palette.card, borderColor: palette.border }]}

@@ -46,7 +46,14 @@ uvicorn api.index:app --reload
 API endpoints:
 - `GET /api/health`
 - `POST /api/found/analyze`
+- `POST /api/found/normalize`
 - `POST /api/lost/search`
+
+Backfill helper (after running the migration that adds `match_*` columns):
+
+```bash
+py -m ai.backfill_match_normalization --batch-size 200
+```
 
 Vercel deployment files:
 - `requirements.txt`

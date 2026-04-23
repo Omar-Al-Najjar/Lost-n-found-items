@@ -1,76 +1,49 @@
-import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
-import React, { useMemo, useState } from 'react';
+import React, { useState } from 'react';
 import { Alert, Animated, Image, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { Ionicons } from '@expo/vector-icons';
 
-import { AmbientBackground } from './AmbientBackground';
+import { AmbientBackground } from '../components/AmbientBackground';
 import { CreatePostCopy } from '../constants/createPostCopy';
 import { useProfilePageMotion } from '../hooks/useProfilePageMotion';
 import { FeedPost, Palette, SelectedImage } from '../types';
 
-type ReportItemFormProps = {
+const categories: FeedPost['category'][] = ['electronics', 'bags', 'documents', 'accessories', 'other'];
+
+type AnalyzeFoundItemScreenProps = {
   copy: CreatePostCopy;
   palette: Palette;
   isArabic: boolean;
-  variant: 'lost' | 'found';
-  allowImageUpload?: boolean;
-  requireImage?: boolean;
-  submitLabel?: string;
-  isSubmitting?: boolean;
+  isAnalyzing: boolean;
   onBack: () => void;
-  onSubmitPost: (post: FeedPost) => void;
+  onAnalyze: (payload: {
+    image: SelectedImage;
+    description: string;
+    location: string;
+    category: FeedPost['category'];
+  }) => void;
 };
 
-const categories: FeedPost['category'][] = ['electronics', 'bags', 'documents', 'accessories', 'other'];
-
-export function ReportItemForm({
+export function AnalyzeFoundItemScreen({
   copy,
   palette,
   isArabic,
-  variant,
-  allowImageUpload,
-  requireImage = false,
-  submitLabel,
-  isSubmitting = false,
+  isAnalyzing,
   onBack,
-  onSubmitPost,
-}: ReportItemFormProps) {
-  const [title, setTitle] = useState('');
+  onAnalyze,
+}: AnalyzeFoundItemScreenProps) {
+  const { headerAnimatedStyle, getItemAnimatedStyle } = useProfilePageMotion();
+  const [selectedImage, setSelectedImage] = useState<SelectedImage | null>(null);
   const [description, setDescription] = useState('');
   const [location, setLocation] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<FeedPost['category']>('electronics');
-  const [selectedImage, setSelectedImage] = useState<SelectedImage | null>(null);
-  const { headerAnimatedStyle, getItemAnimatedStyle } = useProfilePageMotion();
-
-  const isLost = variant === 'lost';
-  const imageUploadEnabled = allowImageUpload ?? isLost;
-  const accentColor = isLost ? palette.danger : palette.accent;
-  const accentSoft = isLost ? palette.dangerSoft : palette.accentSoft;
-
-  const categoryLabels = useMemo(
-    () => ({
-      electronics: copy.electronics,
-      bags: copy.bags,
-      documents: copy.documents,
-      accessories: copy.accessories,
-      other: copy.other,
-    }),
-    [copy]
-  );
-
-  const canSubmit =
-    (isLost ? title.trim().length > 0 : true) &&
-    description.trim().length > 0 &&
-    location.trim().length > 0 &&
-    selectedCategory.length > 0 &&
-    (!requireImage || Boolean(selectedImage));
 
   const pickImage = async () => {
     try {
       const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
       if (!permission.granted) {
-        Alert.alert(requireImage ? copy.foundImageRequiredTitle : copy.noImageTitle, copy.imageMissingError);
+        Alert.alert(copy.foundImageRequiredTitle, copy.foundImageRequiredDescription);
         return;
       }
 
@@ -94,34 +67,25 @@ export function ReportItemForm({
         fileSize: asset.fileSize,
       });
     } catch {
-      Alert.alert(requireImage ? copy.foundImageRequiredTitle : copy.noImageTitle, copy.imageMissingError);
+      Alert.alert(copy.foundImageRequiredTitle, copy.imageMissingError);
     }
   };
 
-  const handleSubmit = () => {
-    if (!canSubmit) {
-      if (requireImage && !selectedImage) {
-        Alert.alert(copy.foundImageRequiredTitle, copy.foundImageRequiredDescription);
-      }
-      return;
-    }
-
-    onSubmitPost({
-      id: Date.now().toString(),
-      type: variant,
-      title: title.trim() || (isLost ? '' : description.trim().slice(0, 60)),
+  const handleAnalyze = () => {
+    if (!selectedImage || isAnalyzing) return;
+    onAnalyze({
+      image: selectedImage,
       description: description.trim(),
       location: location.trim(),
       category: selectedCategory,
-      time: '',
-      contactName: '',
-      image: imageUploadEnabled ? selectedImage : null,
     });
   };
 
+  const canAnalyze = Boolean(selectedImage && description.trim() && location.trim() && !isAnalyzing);
+
   return (
     <SafeAreaView edges={['top']} style={styles.screen}>
-      <AmbientBackground primary={accentColor} secondary={accentSoft} tertiary={palette.accent} />
+      <AmbientBackground primary={palette.accent} secondary={palette.accentSoft} tertiary={palette.danger} />
 
       <Animated.View
         style={[styles.topBar, { backgroundColor: palette.topBar, borderBottomColor: palette.border }, headerAnimatedStyle]}
@@ -133,10 +97,10 @@ export function ReportItemForm({
 
           <View style={styles.topBarCopy}>
             <Text style={[styles.topBarTitle, { color: palette.textPrimary }, isArabic && styles.textRight]}>
-              {isLost ? copy.lostTitle : copy.foundTitle}
+              {copy.analyzeFound}
             </Text>
             <Text style={[styles.topBarSubtitle, { color: palette.textSecondary }, isArabic && styles.textRight]}>
-              {copy.subtitle}
+              {copy.foundImageRequiredDescription}
             </Text>
           </View>
         </View>
@@ -149,24 +113,25 @@ export function ReportItemForm({
       >
         <View style={[styles.card, { backgroundColor: palette.card, borderColor: palette.border }]}>
           <Text style={[styles.sectionTitle, { color: palette.textPrimary }, isArabic && styles.textRight]}>
-            {copy.titleField}
+            {copy.foundImageRequiredTitle}
           </Text>
-          <TextInput
-            value={title}
-            onChangeText={setTitle}
-            placeholder={copy.titlePlaceholder}
-            placeholderTextColor={palette.textSecondary}
-            keyboardType="default"
-            style={[
-              styles.input,
-              {
-                color: palette.textPrimary,
-                borderColor: palette.border,
-                textAlign: isArabic ? 'right' : 'left',
-                writingDirection: isArabic ? 'rtl' : 'ltr',
-              },
-            ]}
-          />
+          <Text style={[styles.sectionHint, { color: palette.textSecondary }, isArabic && styles.textRight]}>
+            {copy.foundImageRequiredDescription}
+          </Text>
+
+          <Pressable style={[styles.imageButton, { backgroundColor: palette.accent }]} onPress={pickImage}>
+            <Ionicons name="image-outline" size={18} color="#ffffff" />
+            <Text style={styles.imageButtonText}>{selectedImage ? copy.imageAdded : copy.imageAllowed}</Text>
+          </Pressable>
+
+          {selectedImage ? (
+            <View style={styles.previewWrap}>
+              <Image source={{ uri: selectedImage.uri }} style={styles.previewImage} resizeMode="cover" />
+              <Pressable onPress={() => setSelectedImage(null)} style={[styles.removeImageButton, { backgroundColor: palette.card }]}>
+                <Ionicons name="close-outline" size={18} color={palette.textPrimary} />
+              </Pressable>
+            </View>
+          ) : null}
 
           <Text style={[styles.sectionTitle, { color: palette.textPrimary }, isArabic && styles.textRight]}>
             {copy.descriptionField}
@@ -177,7 +142,6 @@ export function ReportItemForm({
             placeholder={copy.descriptionPlaceholder}
             placeholderTextColor={palette.textSecondary}
             multiline
-            keyboardType="default"
             style={[
               styles.textArea,
               {
@@ -187,6 +151,7 @@ export function ReportItemForm({
                 writingDirection: isArabic ? 'rtl' : 'ltr',
               },
             ]}
+            keyboardType="default"
           />
 
           <Text style={[styles.sectionTitle, { color: palette.textPrimary }, isArabic && styles.textRight]}>
@@ -197,7 +162,6 @@ export function ReportItemForm({
             onChangeText={setLocation}
             placeholder={copy.locationPlaceholder}
             placeholderTextColor={palette.textSecondary}
-            keyboardType="default"
             style={[
               styles.input,
               {
@@ -207,6 +171,7 @@ export function ReportItemForm({
                 writingDirection: isArabic ? 'rtl' : 'ltr',
               },
             ]}
+            keyboardType="default"
           />
 
           <Text style={[styles.sectionTitle, { color: palette.textPrimary }, isArabic && styles.textRight]}>
@@ -215,6 +180,16 @@ export function ReportItemForm({
           <View style={styles.chipsWrap}>
             {categories.map((category) => {
               const active = selectedCategory === category;
+              const label =
+                category === 'electronics'
+                  ? copy.electronics
+                  : category === 'bags'
+                    ? copy.bags
+                    : category === 'documents'
+                      ? copy.documents
+                      : category === 'accessories'
+                        ? copy.accessories
+                        : copy.other;
               return (
                 <Pressable
                   key={category}
@@ -222,74 +197,30 @@ export function ReportItemForm({
                   style={[
                     styles.chip,
                     {
-                      backgroundColor: active ? accentColor : palette.surfaceAlt,
-                      borderColor: active ? accentColor : palette.border,
+                      backgroundColor: active ? palette.accent : palette.surfaceAlt,
+                      borderColor: active ? palette.accent : palette.border,
                     },
                   ]}
                 >
-                  <Text style={[styles.chipText, { color: active ? '#ffffff' : palette.textPrimary }]}>
-                    {categoryLabels[category]}
-                  </Text>
+                  <Text style={[styles.chipText, { color: active ? '#ffffff' : palette.textPrimary }]}>{label}</Text>
                 </Pressable>
               );
             })}
           </View>
-
-          {imageUploadEnabled ? (
-            <View style={[styles.imageCard, { backgroundColor: palette.surfaceAlt, borderColor: palette.border }]}>
-              <View style={[styles.imageHeader, isArabic && styles.rowReverse]}>
-                <View style={styles.imageHeaderText}>
-                  <Text style={[styles.sectionTitle, { color: palette.textPrimary }, isArabic && styles.textRight]}>
-                    {requireImage ? copy.foundImageRequiredTitle : copy.imageAllowed}
-                  </Text>
-                  <Text style={[styles.imageHint, { color: palette.textSecondary }, isArabic && styles.textRight]}>
-                    {requireImage ? copy.foundImageRequiredDescription : copy.noImageDescription}
-                  </Text>
-                </View>
-                <Pressable
-                  onPress={pickImage}
-                  style={[styles.imageButton, { backgroundColor: accentColor }]}
-                >
-                  <Ionicons name="image-outline" size={18} color="#ffffff" />
-                  <Text style={styles.imageButtonText}>{selectedImage ? copy.imageAdded : copy.imageAllowed}</Text>
-                </Pressable>
-              </View>
-
-              {selectedImage ? (
-                <View style={styles.previewWrap}>
-                  <Image source={{ uri: selectedImage.uri }} style={styles.previewImage} resizeMode="cover" />
-                  <Pressable
-                    onPress={() => setSelectedImage(null)}
-                    style={[styles.removeImageButton, { backgroundColor: palette.card }]}
-                  >
-                    <Ionicons name="close-outline" size={18} color={palette.textPrimary} />
-                  </Pressable>
-                </View>
-              ) : null}
-            </View>
-          ) : null}
-
-          <Text style={[styles.aiHint, { color: palette.textSecondary }, isArabic && styles.textRight]}>
-            {requireImage ? copy.imageRequiredHint : copy.aiHint}
-          </Text>
         </View>
 
         <Pressable
-          onPress={handleSubmit}
-          disabled={!canSubmit || isSubmitting}
+          onPress={handleAnalyze}
+          disabled={!canAnalyze}
           style={[
             styles.submitButton,
             {
-              backgroundColor: accentColor,
-              opacity: canSubmit && !isSubmitting ? 1 : 0.45,
+              backgroundColor: palette.accent,
+              opacity: canAnalyze ? 1 : 0.45,
             },
           ]}
         >
-          <Text style={styles.submitButtonText}>
-            {isSubmitting
-              ? submitLabel || (isLost ? copy.submitLostLoading : copy.submitFoundLoading)
-              : submitLabel || (isLost ? copy.submitLost : copy.submitFound)}
-          </Text>
+          <Text style={styles.submitButtonText}>{isAnalyzing ? copy.analyzeFoundLoading : copy.analyzeFound}</Text>
         </Pressable>
 
         <View style={{ height: 120 }} />
@@ -356,6 +287,10 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '800',
   },
+  sectionHint: {
+    fontSize: 13,
+    lineHeight: 20,
+  },
   input: {
     minHeight: 52,
     borderWidth: 1,
@@ -364,7 +299,7 @@ const styles = StyleSheet.create({
     fontSize: 15,
   },
   textArea: {
-    minHeight: 120,
+    minHeight: 110,
     borderWidth: 1,
     borderRadius: 18,
     paddingHorizontal: 14,
@@ -387,69 +322,50 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '700',
   },
-  imageCard: {
-    borderWidth: 1,
-    borderRadius: 20,
-    padding: 14,
-    gap: 12,
-  },
-  imageHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-  },
-  imageHeaderText: {
-    flex: 1,
-    gap: 4,
-  },
-  imageHint: {
-    fontSize: 13,
-    lineHeight: 20,
-  },
   imageButton: {
     minHeight: 40,
-    borderRadius: 14,
-    paddingHorizontal: 14,
+    borderRadius: 12,
+    paddingHorizontal: 12,
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
     gap: 8,
+    alignSelf: 'flex-start',
   },
   imageButtonText: {
     color: '#ffffff',
     fontSize: 13,
-    fontWeight: '800',
+    fontWeight: '700',
   },
   previewWrap: {
+    marginTop: 6,
+    borderRadius: 16,
+    overflow: 'hidden',
     position: 'relative',
   },
   previewImage: {
     width: '100%',
-    height: 220,
-    borderRadius: 18,
+    aspectRatio: 4 / 3,
+    borderRadius: 16,
   },
   removeImageButton: {
     position: 'absolute',
     top: 10,
     right: 10,
-    width: 32,
-    height: 32,
-    borderRadius: 16,
+    width: 28,
+    height: 28,
+    borderRadius: 14,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  aiHint: {
-    fontSize: 13,
-    lineHeight: 20,
-  },
   submitButton: {
-    minHeight: 54,
+    minHeight: 52,
     borderRadius: 18,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: 18,
   },
   submitButtonText: {
-    color: '#ffffff',
+    color: '#102247',
     fontSize: 15,
     fontWeight: '800',
   },

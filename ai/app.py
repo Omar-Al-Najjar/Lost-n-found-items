@@ -93,6 +93,7 @@ def render_lost_search_tab(pipeline: LostFoundPipeline):
             height=120,
         )
         top_k = st.slider("Maximum matches", min_value=1, max_value=5, value=3)
+        show_all_scores = st.checkbox("Show full score table (all candidates)", value=True)
         submitted = st.form_submit_button("Search lost item")
 
     if not submitted:
@@ -116,40 +117,122 @@ def render_lost_search_tab(pipeline: LostFoundPipeline):
 
         st.markdown("**Parsed lost-item query**")
         st.json(result["lost_query"]["parsed_query"])
+        parsed_lost = result["lost_query"]["parsed_query"]
 
         matches = result["matches"]
         if not matches:
             st.info("No matches passed the current ranking threshold.")
-            return
 
-        st.success(f"Found {len(matches)} potential match(es).")
-        for index, match in enumerate(matches, start=1):
-            with st.container(border=True):
-                st.markdown(f"### Match #{index}")
-                st.write(f"Confidence: **{match['confidence_label']}**")
-                st.write(f"Score: **{match['score'] * 100:.1f}%**")
-                st.write(f"Generated title: **{match.get('generated_title', 'Unknown')}**")
-                st.write(f"Subcategory: **{match.get('subcategory', match.get('item_type', 'Unknown'))}**")
-                st.write(f"Category: **{match.get('category', 'Unknown')}**")
-                st.write(f"Primary color: **{match.get('primary_color', match.get('color', 'Unknown'))}**")
-                st.write(f"Material: **{match.get('material', 'Unknown')}**")
-                st.write(f"Brand: **{match.get('brand', 'Unknown')}**")
-                st.write(f"Public location label: **{match.get('public_location_label', match.get('location_found', 'Unknown'))}**")
-                st.write(f"Finder: **{match.get('finder_name', 'Unknown')}**")
-                st.write(f"Finder email: **{match.get('finder_email', 'Unknown')}**")
+        if matches:
+            st.success(f"Found {len(matches)} potential match(es).")
+            for index, match in enumerate(matches, start=1):
+                with st.container(border=True):
+                    st.markdown(f"### Match #{index}")
+                    st.write(f"Confidence: **{match['confidence_label']}**")
+                    st.write(f"Score: **{match['score'] * 100:.1f}%**")
+                    st.write(f"Generated title: **{match.get('generated_title', 'Unknown')}**")
+                    st.write(f"Subcategory: **{match.get('subcategory', match.get('item_type', 'Unknown'))}**")
+                    st.write(f"Category: **{match.get('category', 'Unknown')}**")
+                    st.write(f"Primary color: **{match.get('primary_color', match.get('color', 'Unknown'))}**")
+                    st.write(f"Material: **{match.get('material', 'Unknown')}**")
+                    st.write(f"Brand: **{match.get('brand', 'Unknown')}**")
+                    st.write(f"Public location label: **{match.get('public_location_label', match.get('location_found', 'Unknown'))}**")
+                    st.write(f"Finder: **{match.get('finder_name', 'Unknown')}**")
+                    st.write(f"Finder email: **{match.get('finder_email', 'Unknown')}**")
 
-                if match.get("evidence"):
-                    st.markdown("**Why it ranked**")
-                    for evidence in match["evidence"]:
-                        st.write(f"- {evidence}")
+                    if match.get("evidence"):
+                        st.markdown("**Why it ranked**")
+                        for evidence in match["evidence"]:
+                            st.write(f"- {evidence}")
 
-                if match.get("contradictions"):
-                    st.markdown("**Cautions**")
-                    for contradiction in match["contradictions"]:
-                        st.write(f"- {contradiction}")
+                    if match.get("contradictions"):
+                        st.markdown("**Cautions**")
+                        for contradiction in match["contradictions"]:
+                            st.write(f"- {contradiction}")
 
-                st.markdown("**AI explanation**")
-                st.write(match["explanation"])
+                    st.markdown("**AI explanation**")
+                    st.write(match["explanation"])
+
+        if show_all_scores:
+            query_text = pipeline.build_lost_embed_text(parsed_lost, lost_description.strip())
+            query_vector = pipeline.embed(query_text)
+            base_threshold = (
+                pipeline._get_search_threshold(parsed_lost)
+                if hasattr(pipeline, "_get_search_threshold")
+                else 0.48
+            )
+            all_rows: list[dict[str, object]] = []
+            for raw_item in pipeline.db.found_items:
+                status = str(raw_item.get("status") or "").lower()
+                if status not in {"available", "active"}:
+                    continue
+
+                item = dict(raw_item)
+                normalized = pipeline.normalize_found_item_for_matching(item)
+                item.update(normalized)
+                item["embed_text"] = pipeline.build_found_embed_text(
+                    {
+                        "generated_summary": item.get("match_text_en") or item.get("generated_summary") or "Found item",
+                        "generated_title": item.get("generated_title") or "Found item",
+                        "subcategory": item.get("subcategory") or "Unknown",
+                        "category": item.get("category") or "other",
+                        "primary_color": item.get("primary_color") or "Unknown",
+                        "material": item.get("material") or "Unknown",
+                        "brand": item.get("brand") or "Unknown",
+                        "visible_contents": item.get("visible_contents") or [],
+                        "notable_features": item.get("match_keywords_en") or item.get("notable_features") or [],
+                    },
+                    str(item.get("user_description") or ""),
+                    str(item.get("match_location_en") or item.get("public_location_label") or "Unknown"),
+                )
+                item_vector = pipeline.embed(str(item["embed_text"]))
+                semantic_score = pipeline.cosine_similarity_score(query_vector, item_vector)
+
+                lost_seed_terms = (
+                    pipeline.ensure_list(parsed_lost.get("search_keywords"))
+                    + pipeline.ensure_list(parsed_lost.get("location_clues"))
+                    + [str(parsed_lost.get("subcategory") or ""), str(parsed_lost.get("query_text") or "")]
+                )
+                found_seed_terms = (
+                    pipeline.ensure_list(item.get("match_keywords_en") or item.get("search_keywords"))
+                    + pipeline.ensure_list(item.get("notable_features"))
+                    + [
+                        str(item.get("generated_title") or ""),
+                        str(item.get("match_text_en") or item.get("generated_summary") or ""),
+                        str(item.get("subcategory") or ""),
+                    ]
+                )
+                lexical_seed = pipeline.overlap_score(lost_seed_terms, found_seed_terms)
+                score = pipeline.score_candidate(parsed_lost, item, float(semantic_score))
+                soft_threshold = base_threshold - 0.10 if lexical_seed >= 0.10 else base_threshold
+
+                all_rows.append(
+                    {
+                        "id": str(item.get("id") or ""),
+                        "title": str(item.get("generated_title") or "Found item"),
+                        "subcategory": str(item.get("subcategory") or item.get("item_type") or "Unknown"),
+                        "category": str(item.get("category") or "other"),
+                        "semantic_score": round(float(semantic_score), 4),
+                        "lexical_seed": round(float(lexical_seed), 4),
+                        "final_score": round(float(score.get("final_score", 0.0)), 4),
+                        "soft_threshold": round(float(soft_threshold), 4),
+                        "passes_soft_threshold": bool(float(score.get("final_score", 0.0)) >= float(soft_threshold)),
+                        "confidence": str(score.get("confidence_label") or "Low"),
+                        "evidence": ", ".join([str(v) for v in score.get("evidence", [])[:4]]),
+                        "contradictions": ", ".join([str(v) for v in score.get("contradictions", [])[:3]]),
+                    }
+                )
+
+            all_rows.sort(key=lambda row: float(row["final_score"]), reverse=True)
+            st.markdown("**All candidate scores**")
+            st.caption(
+                f"Base threshold: {base_threshold:.2f} | "
+                f"Candidates scored: {len(all_rows)} | Query (English-normalized): {query_text}"
+            )
+            if all_rows:
+                st.dataframe(all_rows, use_container_width=True)
+            else:
+                st.info("No active/available found candidates to score.")
     except Exception as error:
         st.error(f"Lost-item search failed: {error}")
 

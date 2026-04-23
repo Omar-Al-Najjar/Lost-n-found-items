@@ -1,6 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
-import React from 'react';
-import { Animated, Image, Pressable, StyleSheet, Text, View } from 'react-native';
+import React, { useState } from 'react';
+import { Animated, Image, Modal, Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { AmbientBackground } from '../components/AmbientBackground';
@@ -31,6 +31,7 @@ export function ItemDetailsScreen({
   const { headerAnimatedStyle, getItemAnimatedStyle } = useProfilePageMotion();
   const isLost = item.type === 'lost';
   const isOwnPost = Boolean(currentUserId && item.userId === currentUserId);
+  const [previewImageUri, setPreviewImageUri] = useState<string | null>(null);
 
   const getStatusLabel = () => {
     if (item.status === 'open') return copy.statusOpen;
@@ -70,7 +71,9 @@ export function ItemDetailsScreen({
         showsVerticalScrollIndicator={false}
       >
         {item.image ? (
-          <Image source={{ uri: item.image }} style={styles.heroPhoto} resizeMode="cover" />
+          <Pressable onPress={() => setPreviewImageUri(item.image)} style={styles.heroPhotoTapTarget}>
+            <Image source={{ uri: item.image }} style={styles.heroPhoto} resizeMode="cover" />
+          </Pressable>
         ) : isLost ? (
           <View style={[styles.heroImage, { backgroundColor: '#FCECEE', borderColor: '#F3A5AC' }]}>
             <Ionicons name={getCategoryIcon()} size={42} color="#D95C63" />
@@ -126,6 +129,21 @@ export function ItemDetailsScreen({
 
         <View style={{ height: 140 }} />
       </Animated.ScrollView>
+
+      <Modal
+        visible={Boolean(previewImageUri)}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setPreviewImageUri(null)}
+        statusBarTranslucent
+      >
+        <View style={styles.previewBackdrop}>
+          <Pressable style={styles.previewCloseButton} onPress={() => setPreviewImageUri(null)}>
+            <Ionicons name="close" size={22} color="#ffffff" />
+          </Pressable>
+          {previewImageUri ? <Image source={{ uri: previewImageUri }} style={styles.previewImage} resizeMode="contain" /> : null}
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -178,6 +196,10 @@ const styles = StyleSheet.create({
     width: '100%',
     height: 240,
     borderRadius: 28,
+  },
+  heroPhotoTapTarget: {
+    borderRadius: 28,
+    overflow: 'hidden',
   },
   heroImageLabel: {
     color: '#A44B54',
@@ -261,5 +283,29 @@ const styles = StyleSheet.create({
   },
   textRight: {
     textAlign: 'right',
+  },
+  previewBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.9)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 28,
+  },
+  previewCloseButton: {
+    position: 'absolute',
+    top: 48,
+    right: 20,
+    width: 40,
+    height: 40,
+    borderRadius: 999,
+    backgroundColor: 'rgba(0,0,0,0.45)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 2,
+  },
+  previewImage: {
+    width: '100%',
+    height: '100%',
   },
 });

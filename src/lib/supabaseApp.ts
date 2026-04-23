@@ -98,6 +98,21 @@ export type CreatePostInput = {
   image?: SelectedImage | null;
   aiAnalysis?: AiFoundAnalysis | null;
   existingImageStoragePath?: string | null;
+  matchTextEn?: string | null;
+  matchKeywordsEn?: string[];
+  matchLocationEn?: string | null;
+};
+
+export type SaveAnalyzedFoundItemInput = {
+  userId: string;
+  title: string;
+  summary: string;
+  description: string;
+  location: string;
+  category: HomeFeedItem['category'];
+  image: SelectedImage;
+  existingImageStoragePath?: string | null;
+  aiAnalysis: AiFoundAnalysis;
 };
 
 const fallbackText = {
@@ -122,6 +137,13 @@ const fallbackText = {
 const IMAGE_MESSAGE_PLACEHOLDER = '[image]';
 const ONLINE_THRESHOLD_MINUTES = 2;
 const IMAGE_PREVIEW_TEXT = 'Image';
+const nonSlugCharsPattern = (() => {
+  try {
+    return new RegExp('[^\\p{L}\\p{N}]+', 'gu');
+  } catch {
+    return /[^a-z0-9]+/g;
+  }
+})();
 
 function assertNoError(error: { message: string } | null) {
   if (error) {
@@ -130,11 +152,15 @@ function assertNoError(error: { message: string } | null) {
 }
 
 function slugify(value: string) {
-  return value
+  const slug = value
     .trim()
+    .normalize('NFKC')
     .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-+|-+$/g, '') || 'unknown';
+    .replace(nonSlugCharsPattern, '-')
+    .replace(/-{2,}/g, '-')
+    .replace(/^-+|-+$/g, '');
+
+  return slug || 'unknown';
 }
 
 function formatRelativeDate(value: string | null, language: Language) {
@@ -618,7 +644,11 @@ export async function upsertCurrentUserProfile(input: {
 
 export async function createPost(input: CreatePostInput) {
   const postId = generateUuid();
-  const isFoundReport = input.type === 'found';
+  const shouldPublishToFeed = input.type === 'lost';
+  const matchKeywords = (input.matchKeywordsEn ?? []).map((value) => String(value || '').trim()).filter((value) => Boolean(value));
+  const hasMatchNormalization =
+    Boolean((input.matchTextEn || '').trim()) || Boolean((input.matchLocationEn || '').trim()) || matchKeywords.length > 0;
+
   const { error } = await supabase.from('posts').insert({
     id: postId,
     user_id: input.userId,
@@ -638,8 +668,12 @@ export async function createPost(input: CreatePostInput) {
     material: input.aiAnalysis?.material && input.aiAnalysis.material !== 'Unknown' ? input.aiAnalysis.material : null,
     notable_features: input.aiAnalysis?.distinctiveFeatures ?? [],
     search_keywords: input.aiAnalysis?.searchKeywords ?? [],
-    // Privacy-first: keep found-item reports internal and out of the public feed.
-    is_public: !isFoundReport,
+    match_text_en: (input.matchTextEn || '').trim() || null,
+    match_keywords_en: matchKeywords,
+    match_location_en: (input.matchLocationEn || '').trim() || null,
+    match_norm_updated_at: hasMatchNormalization ? new Date().toISOString() : null,
+    // Found-item AI pool should remain hidden from public feed; lost reports stay public.
+    is_public: shouldPublishToFeed,
     is_removed: false,
   });
 
@@ -649,6 +683,41 @@ export async function createPost(input: CreatePostInput) {
     await attachExistingPostImage(postId, input.userId, input.existingImageStoragePath, input.image);
   } else if (input.image) {
     await uploadPostImage(postId, input.userId, input.image);
+  }
+}
+
+export async function saveAnalyzedFoundItem(input: SaveAnalyzedFoundItemInput) {
+  const imageStoragePath =
+    (input.existingImageStoragePath || '').trim() ||
+    (await uploadDraftPostImage(input.userId, input.image)).storagePath;
+
+  const insertResult = await supabase.from('analyzed_items').insert({
+    user_id: input.userId,
+    status: 'analyzed',
+    title: input.aiAnalysis?.title || input.title,
+    summary: input.aiAnalysis?.summary || input.summary || input.description,
+    user_description: input.description,
+    public_location_label: input.location,
+    category: input.aiAnalysis?.category || input.category,
+    subcategory: input.aiAnalysis?.itemType || null,
+    brand: input.aiAnalysis?.brand && input.aiAnalysis.brand !== 'Unknown' ? input.aiAnalysis.brand : null,
+    primary_color:
+      input.aiAnalysis?.primaryColor && input.aiAnalysis.primaryColor !== 'Unknown' ? input.aiAnalysis.primaryColor : null,
+    material: input.aiAnalysis?.material && input.aiAnalysis.material !== 'Unknown' ? input.aiAnalysis.material : null,
+    notable_features: input.aiAnalysis?.distinctiveFeatures ?? [],
+    search_keywords: input.aiAnalysis?.searchKeywords ?? [],
+    confidence: input.aiAnalysis?.confidence || 'low',
+    review_hint: input.aiAnalysis?.reviewHint || null,
+    image_storage_path: imageStoragePath,
+    raw_ai_analysis: input.aiAnalysis ?? {},
+  });
+
+  if (insertResult.error) {
+    const normalized = String(insertResult.error.message || '').toLowerCase();
+    if (normalized.includes('analyzed_items') && normalized.includes('does not exist')) {
+      throw new Error('Analyzed-item storage is not enabled yet. Run the latest Supabase migration.');
+    }
+    assertNoError(insertResult.error);
   }
 }
 

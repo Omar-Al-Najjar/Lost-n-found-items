@@ -14,13 +14,22 @@ This folder contains the schema consolidation for the mobile MVP.
 - `migrations/20260421_post_resolution_retention_cleanup.sql`
   - adds `resolved_at` + `purge_after_at` on `posts`
   - auto-hides resolved posts from public feed
-  - keeps found posts internal (`is_public = false`) even when active
   - adds `purge_expired_resolved_posts(batch_size)` cleanup function
 
 - `migrations/20260421_require_handed_off_for_purge.sql`
   - adds `handed_to_owner` to `posts`
   - ensures purge only applies when `handed_to_owner = true`
   - updates purge function and resolution trigger accordingly
+
+- `migrations/20260423_show_active_found_posts_in_public_feed.sql`
+  - makes active found posts visible in `public_feed_view`
+  - keeps resolved/draft/archived/removed posts hidden from public feed
+
+- `migrations/20260423_ai_match_normalization_fields.sql`
+  - adds write-time AI matching columns on `public.posts`:
+    - `match_text_en`, `match_keywords_en`, `match_location_en`, `match_norm_updated_at`
+  - seeds basic values for existing active found posts
+  - adds indexes for faster matching retrieval/filtering
 
 - `migrations/20260421_chat_images_and_presence.sql`
   - adds profile `last_seen_at` + `touch_my_presence()` RPC

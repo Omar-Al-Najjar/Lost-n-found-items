@@ -28,6 +28,7 @@ import {
   markConversationRead,
   markAllNotificationsRead,
   markNotificationRead,
+  saveAnalyzedFoundItem,
   sendMessage,
   sendImageMessage,
   touchMyPresence,
@@ -41,6 +42,7 @@ import {
   searchPotentialFoundMatches,
 } from './src/lib/aiAssistant';
 import { AddPostScreen } from './src/screens/AddPostScreen';
+import { AnalyzeFoundItemScreen } from './src/screens/AnalyzeFoundItemScreen';
 import { ChatbotScreen } from './src/screens/ChatbotScreenV2';
 import { ConversationsScreen } from './src/screens/ConversationsScreen';
 import { DirectMessageScreen } from './src/screens/DirectMessageScreen';
@@ -87,6 +89,9 @@ type AuthStackScreenProps<T extends keyof AuthStackParamList> = NativeStackScree
 >;
 
 if (__DEV__) {
+  // RN/Expo LogBox occasionally crashes while rendering some warning payloads.
+  // Keep development usable by suppressing noisy warning rendering.
+  LogBox.ignoreAllLogs(true);
   LogBox.ignoreLogs([
     'props.log.getAvailableStack().some is not a function',
     'An error was thrown when attempting to render log messages via LogBox',
@@ -111,12 +116,17 @@ export default function App() {
   const [selectedItem, setSelectedItem] = useState<HomeFeedItem | null>(null);
   const [itemDetailsBackRoute, setItemDetailsBackRoute] = useState<RouteKey>('search');
   const [searchBackRoute, setSearchBackRoute] = useState<RouteKey>('homeFeed');
+  const [foundFlowBackRoute, setFoundFlowBackRoute] = useState<RouteKey>('addPost');
   const [searchMode, setSearchMode] = useState<'browse' | 'assistant'>('browse');
   const [highlightedReportId, setHighlightedReportId] = useState<string | null>(null);
   const [isSendingMessage, setIsSendingMessage] = useState(false);
   const [pendingFoundDraft, setPendingFoundDraft] = useState<AiFoundAnalysisDraft | null>(null);
   const [aiSearchHistory, setAiSearchHistory] = useState<AiSearchRun[]>([]);
   const [activeAiSearch, setActiveAiSearch] = useState<AiSearchRun | null>(null);
+  const [isAiSearchPending, setIsAiSearchPending] = useState(false);
+  const [isAnalyzingFound, setIsAnalyzingFound] = useState(false);
+  const [isPublishingReviewedFound, setIsPublishingReviewedFound] = useState(false);
+  const [isPostingReport, setIsPostingReport] = useState(false);
 
   const isArabic = language === 'ar';
   const isDark = themeMode === 'dark' || (themeMode === 'system' && systemColorScheme === 'dark');
@@ -450,12 +460,14 @@ export default function App() {
   };
 
   const onSubmitPost = async (post: FeedPost) => {
+    if (isPostingReport) return;
     if (!currentUserId) {
       Alert.alert(t.appName, isArabic ? '???? ????? ?????? ?????.' : 'Please sign in first.');
       return;
     }
 
     try {
+      setIsPostingReport(true);
       let matchTextEn: string | null = null;
       let matchKeywordsEn: string[] = [];
       let matchLocationEn: string | null = null;
@@ -479,7 +491,8 @@ export default function App() {
           matchKeywordsEn = normalized.matchKeywordsEn || [];
           matchLocationEn = normalized.matchLocationEn || null;
         } catch (normalizationError) {
-          console.warn('Found-post normalization failed, continuing without normalization fields.', normalizationError);
+          const details = getErrorMessage(normalizationError, 'Unknown normalization error.');
+          console.warn(`Found-post normalization failed, continuing without normalization fields. ${details}`);
         }
       }
 
@@ -497,37 +510,109 @@ export default function App() {
       });
       await refreshAppData();
       setRoute('homeFeed');
-      Alert.alert(t.appName, t.postSuccess);
     } catch (error) {
       Alert.alert(t.appName, getErrorMessage(error, 'Failed to create the report.'));
+    } finally {
+      setIsPostingReport(false);
     }
   };
 
-  const handleAnalyzeFoundPost = async (post: FeedPost) => {
-    if (!post.image) {
-      Alert.alert(createPostCopy.foundImageRequiredTitle, createPostCopy.foundImageRequiredDescription);
-      return;
-    }
+  const handleAnalyzeFoundImage = async (payload: {
+    image: SelectedImage;
+    description: string;
+    location: string;
+    category: FeedPost['category'];
+  }) => {
+    const { image, description, location, category } = payload;
+    const isAiOverloadedError = (message: string) => {
+      const lowered = message.toLowerCase();
+      return (
+        lowered.includes('engine_overloaded_error') ||
+        lowered.includes('error code: 429') ||
+        (lowered.includes('429') && lowered.includes('overload'))
+      );
+    };
+
+    const buildFallbackFoundDraft = (): AiFoundAnalysisDraft => {
+      return {
+        image,
+        draftImageStoragePath: '',
+        description,
+        location,
+        category,
+        analysis: {
+          title: isArabic ? 'عنصر معثور عليه' : 'Found item',
+          summary: isArabic
+            ? 'تم إنشاء تحليل مبدئي لأن خدمة الذكاء مشغولة حالياً.'
+            : 'A draft analysis was generated because the AI service is currently busy.',
+          itemType: isArabic ? 'غير معروف' : 'Unknown',
+          category,
+          brand: 'Unknown',
+          primaryColor: 'Unknown',
+          material: 'Unknown',
+          distinctiveFeatures: [],
+          searchKeywords: [],
+          confidence: 'low',
+          reviewHint: isArabic
+            ? 'خدمة الذكاء مشغولة حالياً، لذلك تم إنشاء تحليل مبدئي. راجع التفاصيل قبل النشر.'
+            : 'AI service is busy right now, so a draft analysis was created. Review details before publishing.',
+        },
+      };
+    };
+
+    const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
     try {
-      const analysis = await analyzeFoundItemWithAi({
-        image: post.image,
-        description: post.description,
-        locationFound: post.location,
-        language,
-      });
+      setIsAnalyzingFound(true);
+
+      let analysis:
+        | Awaited<ReturnType<typeof analyzeFoundItemWithAi>>
+        | null = null;
+      let lastError: unknown = null;
+
+      for (let attempt = 1; attempt <= 2; attempt += 1) {
+        try {
+          analysis = await analyzeFoundItemWithAi({
+            image,
+            description: description || (isArabic ? 'تحليل صورة فقط' : 'Photo-only analysis'),
+            locationFound: location || 'Unknown',
+            language,
+          });
+          break;
+        } catch (error) {
+          lastError = error;
+          const message = getErrorMessage(error, 'Failed to analyze the item.');
+          if (attempt < 2 && isAiOverloadedError(message)) {
+            await wait(1200);
+            continue;
+          }
+          break;
+        }
+      }
+
+      if (!analysis) {
+        throw lastError || new Error('Failed to analyze the item.');
+      }
 
       setPendingFoundDraft({
-        image: post.image,
+        image,
         draftImageStoragePath: analysis.draftImageStoragePath,
-        description: post.description,
-        location: post.location,
-        category: post.category,
+        description,
+        location,
+        category: analysis.analysis.category || category || 'other',
         analysis: analysis.analysis,
       });
       setRoute('foundAiReview');
     } catch (error) {
-      Alert.alert(t.appName, getErrorMessage(error, 'Failed to analyze the item.'));
+      const rawMessage = getErrorMessage(error, 'Failed to analyze the item.');
+      if (isAiOverloadedError(rawMessage)) {
+        setPendingFoundDraft(buildFallbackFoundDraft());
+        setRoute('foundAiReview');
+      } else {
+        Alert.alert(t.appName, rawMessage);
+      }
+    } finally {
+      setIsAnalyzingFound(false);
     }
   };
 
@@ -543,61 +628,38 @@ export default function App() {
     }
 
     try {
-      let matchTextEn: string | null = null;
-      let matchKeywordsEn: string[] = [];
-      let matchLocationEn: string | null = null;
-
-      if (aiConfigured) {
-        try {
-          const normalized = await normalizeFoundPostWithAi({
-            title: payload.title,
-            summary: payload.aiDraft.analysis.summary || payload.description,
-            description: payload.description,
-            locationFound: payload.aiDraft.location,
-            category: payload.category,
-            itemType: payload.aiDraft.analysis.itemType || '',
-            primaryColor: payload.aiDraft.analysis.primaryColor || '',
-            material: payload.aiDraft.analysis.material || '',
-            brand: payload.aiDraft.analysis.brand || '',
-            distinctiveFeatures: payload.aiDraft.analysis.distinctiveFeatures || [],
-            searchKeywords: payload.aiDraft.analysis.searchKeywords || [],
-          });
-          matchTextEn = normalized.matchTextEn || null;
-          matchKeywordsEn = normalized.matchKeywordsEn || [];
-          matchLocationEn = normalized.matchLocationEn || null;
-        } catch (normalizationError) {
-          console.warn('AI-reviewed found post normalization failed, continuing without normalization fields.', normalizationError);
-        }
-      }
-
-      await createPost({
+      setIsPublishingReviewedFound(true);
+      await saveAnalyzedFoundItem({
         userId: currentUserId,
-        type: 'found',
         title: payload.title,
+        summary: payload.aiDraft.analysis.summary || payload.description,
         description: payload.description,
         location: payload.aiDraft.location,
         category: payload.category,
         image: payload.aiDraft.image,
-        aiAnalysis: payload.aiDraft.analysis,
         existingImageStoragePath: payload.aiDraft.draftImageStoragePath,
-        matchTextEn,
-        matchKeywordsEn,
-        matchLocationEn,
+        aiAnalysis: payload.aiDraft.analysis,
       });
       setPendingFoundDraft(null);
-      await refreshAppData();
       setRoute('chatbot');
-      Alert.alert(t.appName, t.postSuccess);
     } catch (error) {
       Alert.alert(t.appName, getErrorMessage(error, 'Failed to create the report.'));
+    } finally {
+      setIsPublishingReviewedFound(false);
     }
   };
 
   const handleRunAiSearch = async (query: string) => {
-    const run = await searchPotentialFoundMatches(query, language);
-    setActiveAiSearch(run);
-    setAiSearchHistory((current) => [run, ...current.filter((entry) => entry.id !== run.id)].slice(0, 6));
-    return run;
+    setIsAiSearchPending(true);
+    setActiveAiSearch(null);
+    try {
+      const run = await searchPotentialFoundMatches(query, language);
+      setActiveAiSearch(run);
+      setAiSearchHistory((current) => [run, ...current.filter((entry) => entry.id !== run.id)].slice(0, 6));
+      return run;
+    } finally {
+      setIsAiSearchPending(false);
+    }
   };
 
   const handleOpenAiSearchRun = (run: AiSearchRun) => {
@@ -815,7 +877,7 @@ export default function App() {
   };
 
   const aiConfigured = isAiAssistantConfigured();
-  const visibleAiSearch = activeAiSearch ?? aiSearchHistory[0] ?? null;
+  const visibleAiSearch = isAiSearchPending ? null : activeAiSearch ?? aiSearchHistory[0] ?? null;
   const latestAiMatches = visibleAiSearch?.matches.slice(0, 3) ?? [];
 
   const renderCoreScreen = () => {
@@ -845,7 +907,9 @@ export default function App() {
             aiConfigured={aiConfigured}
             recentSearches={aiSearchHistory}
             likelyMatches={latestAiMatches}
-            onOpenFoundFlow={() => setRoute('reportFound')}
+            onOpenFoundFlow={() => {
+              setRoute('analyzeFound');
+            }}
             onOpenSearch={() => {
               setSearchBackRoute('chatbot');
               setSearchMode('assistant');
@@ -862,7 +926,10 @@ export default function App() {
             palette={palette}
             isArabic={isArabic}
             onOpenLost={() => setRoute('reportLost')}
-            onOpenFound={() => setRoute('reportFound')}
+            onOpenFound={() => {
+              setFoundFlowBackRoute('addPost');
+              setRoute('reportFound');
+            }}
           />
         );
       case 'conversations':
@@ -962,6 +1029,7 @@ export default function App() {
             copy={createPostCopy}
             palette={palette}
             isArabic={isArabic}
+            isSubmitting={isPostingReport}
             onBack={() => setRoute('addPost')}
             onSubmitPost={onSubmitPost}
           />
@@ -972,8 +1040,20 @@ export default function App() {
             copy={createPostCopy}
             palette={palette}
             isArabic={isArabic}
-            onBack={() => setRoute('addPost')}
+            isSubmitting={isPostingReport}
+            onBack={() => setRoute(foundFlowBackRoute)}
             onSubmitPost={onSubmitPost}
+          />
+        );
+      case 'analyzeFound':
+        return (
+          <AnalyzeFoundItemScreen
+            copy={createPostCopy}
+            palette={palette}
+            isArabic={isArabic}
+            isAnalyzing={isAnalyzingFound}
+            onBack={() => setRoute('chatbot')}
+            onAnalyze={handleAnalyzeFoundImage}
           />
         );
       case 'foundAiReview':
@@ -983,7 +1063,8 @@ export default function App() {
             palette={palette}
             isArabic={isArabic}
             draft={pendingFoundDraft}
-            onBack={() => setRoute('reportFound')}
+            isPublishing={isPublishingReviewedFound}
+            onBack={() => setRoute('analyzeFound')}
             onPublish={handlePublishReviewedFoundPost}
           />
         ) : null;
@@ -1023,15 +1104,21 @@ export default function App() {
   const renderAuthedScreen = () => renderCoreScreen() ?? renderAuxiliaryScreen();
 
   const activeTab: TabKey =
-    route === 'reportLost' || route === 'reportFound' || route === 'foundAiReview'
-      ? 'addPost'
-      : route === 'homeFeed' ||
-          route === 'chatbot' ||
-          route === 'addPost' ||
-          route === 'conversations' ||
-          route === 'profile'
-        ? route
-        : 'profile';
+    route === 'search'
+      ? searchMode === 'assistant'
+        ? 'chatbot'
+        : 'homeFeed'
+      : route === 'analyzeFound' || route === 'foundAiReview'
+        ? 'chatbot'
+        : route === 'reportLost' || route === 'reportFound'
+          ? 'addPost'
+        : route === 'homeFeed' ||
+            route === 'chatbot' ||
+            route === 'addPost' ||
+            route === 'conversations' ||
+              route === 'profile'
+            ? route
+            : 'profile';
 
   return (
     <GestureHandlerRootView style={styles.safeArea}>

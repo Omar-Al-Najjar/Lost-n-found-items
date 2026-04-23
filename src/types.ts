@@ -12,6 +12,7 @@ export type RouteKey =
   | 'directMessage'
   | 'search'
   | 'itemDetails'
+  | 'analyzeFound'
   | 'reportLost'
   | 'reportFound'
   | 'foundAiReview'
@@ -88,6 +89,17 @@ export type AiSearchRun = {
   query: string;
   createdAtLabel: string;
   matches: AiMatchCandidate[];
+  debug?: {
+    normalizedQuery: string;
+    searchInputs: string[];
+    retrievedCandidateCount: number;
+    rankedCandidateCount: number;
+    topScores: number[];
+    perQuery: Array<{
+      query: string;
+      stage: Record<string, unknown>;
+    }>;
+  };
 };
 
 export type AiHubFoundInsight = {

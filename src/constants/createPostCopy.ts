@@ -33,6 +33,7 @@ export type CreatePostCopy = {
   noImageDescription: string;
   aiHint: string;
   analyzeFound: string;
+  analyzeFoundLoading: string;
   foundImageRequiredTitle: string;
   foundImageRequiredDescription: string;
   reviewTitle: string;
@@ -44,8 +45,11 @@ export type CreatePostCopy = {
   aiSuggestedMaterial: string;
   aiSuggestedFeatures: string;
   publishReviewedFound: string;
+  publishReviewedFoundLoading: string;
   submitLost: string;
+  submitLostLoading: string;
   submitFound: string;
+  submitFoundLoading: string;
   backToCreate: string;
 };
 
@@ -58,7 +62,7 @@ const createPostCopy: Record<Language, CreatePostCopy> = {
     lostTitle: 'Lost item',
     foundTitle: 'Found item',
     lostRouteDescription: 'Use this when you lost something. You can describe the item and search for likely finders.',
-    foundRouteDescription: 'Use this when you found something. A clear photo is required so the assistant can analyze it.',
+    foundRouteDescription: 'Use this when you found something. This posting form is text-only and does not upload photos.',
     titleField: 'Title',
     titlePlaceholder: 'Example: Black leather wallet',
     categoryField: 'Category',
@@ -77,12 +81,13 @@ const createPostCopy: Record<Language, CreatePostCopy> = {
     imageAllowed: 'Add image',
     imageAdded: 'Image attached',
     imageHint: 'Photos are optional, but adding one can help identify the item faster.',
-    imageRequiredHint: 'Add a photo so the assistant can analyze the found item before publishing.',
+    imageRequiredHint: 'Adding a photo helps matching quality, but you can still publish without one.',
     imageMissingError: 'Image selection failed. Please try again.',
-    noImageTitle: 'Photo required for found items',
-    noImageDescription: 'Found-item analysis works best with a clear photo and short description.',
+    noImageTitle: 'Photo selection issue',
+    noImageDescription: 'If photo selection fails, you can continue posting without an image.',
     aiHint: 'Write the strongest identifying details first so matching is faster.',
     analyzeFound: 'Analyze this item',
+    analyzeFoundLoading: 'Analyzing...',
     foundImageRequiredTitle: 'Photo required',
     foundImageRequiredDescription: 'Upload a clear photo so the assistant can analyze the item before publishing.',
     reviewTitle: 'Review AI suggestions',
@@ -94,8 +99,11 @@ const createPostCopy: Record<Language, CreatePostCopy> = {
     aiSuggestedMaterial: 'Material',
     aiSuggestedFeatures: 'Distinctive features',
     publishReviewedFound: 'Publish reviewed found report',
+    publishReviewedFoundLoading: 'Publishing...',
     submitLost: 'Publish lost report',
+    submitLostLoading: 'Publishing...',
     submitFound: 'Publish found report',
+    submitFoundLoading: 'Publishing...',
     backToCreate: 'Back to report types',
   },
   ar: {
@@ -106,7 +114,7 @@ const createPostCopy: Record<Language, CreatePostCopy> = {
     lostTitle: '\u0639\u0646\u0635\u0631 \u0645\u0641\u0642\u0648\u062f',
     foundTitle: '\u0639\u0646\u0635\u0631 \u0645\u0639\u062b\u0648\u0631 \u0639\u0644\u064a\u0647',
     lostRouteDescription: '\u0627\u0633\u062a\u062e\u062f\u0645 \u0647\u0630\u0627 \u0627\u0644\u062e\u064a\u0627\u0631 \u0625\u0630\u0627 \u0641\u0642\u062f\u062a \u063a\u0631\u0636\u064b\u0627. \u0635\u0641 \u0627\u0644\u0639\u0646\u0635\u0631 \u0648\u0627\u0628\u062d\u062b \u0639\u0646 \u0623\u0642\u0631\u0628 \u0627\u0644\u0623\u0634\u062e\u0627\u0635 \u0627\u0644\u0630\u064a\u0646 \u0642\u062f \u064a\u0643\u0648\u0646\u0648\u0646 \u0648\u062c\u062f\u0648\u0647.',
-    foundRouteDescription: '\u0627\u0633\u062a\u062e\u062f\u0645 \u0647\u0630\u0627 \u0627\u0644\u062e\u064a\u0627\u0631 \u0625\u0630\u0627 \u0639\u062b\u0631\u062a \u0639\u0644\u0649 \u063a\u0631\u0636. \u064a\u0644\u0632\u0645 \u0631\u0641\u0639 \u0635\u0648\u0631\u0629 \u0648\u0627\u0636\u062d\u0629 \u062d\u062a\u0649 \u064a\u062d\u0644\u0644 \u0627\u0644\u0645\u0633\u0627\u0639\u062f \u0627\u0644\u0639\u0646\u0635\u0631.',
+    foundRouteDescription: '\u0627\u0633\u062a\u062e\u062f\u0645 \u0647\u0630\u0627 \u0627\u0644\u062e\u064a\u0627\u0631 \u0625\u0630\u0627 \u0639\u062b\u0631\u062a \u0639\u0644\u0649 \u063a\u0631\u0636. \u0646\u0645\u0648\u0630\u062c \u0627\u0644\u0646\u0634\u0631 \u0647\u0646\u0627 \u0646\u0635\u064a \u0641\u0642\u0637 \u0648\u0644\u0627 \u064a\u0631\u0641\u0639 \u0635\u0648\u0631\u064b\u0627.',
     titleField: '\u0627\u0644\u0639\u0646\u0648\u0627\u0646',
     titlePlaceholder: '\u0645\u062b\u0627\u0644: \u0645\u062d\u0641\u0638\u0629 \u062c\u0644\u062f\u064a\u0629 \u0633\u0648\u062f\u0627\u0621',
     categoryField: '\u0627\u0644\u062a\u0635\u0646\u064a\u0641',
@@ -125,12 +133,13 @@ const createPostCopy: Record<Language, CreatePostCopy> = {
     imageAllowed: '\u0625\u0636\u0627\u0641\u0629 \u0635\u0648\u0631\u0629',
     imageAdded: '\u062a\u0645 \u0625\u0631\u0641\u0627\u0642 \u0635\u0648\u0631\u0629',
     imageHint: '\u0627\u0644\u0635\u0648\u0631 \u0627\u062e\u062a\u064a\u0627\u0631\u064a\u0629\u060c \u0648\u0625\u0636\u0627\u0641\u062a\u0647\u0627 \u0642\u062f \u062a\u0633\u0627\u0639\u062f \u0641\u064a \u0627\u0644\u062a\u0639\u0631\u0641 \u0639\u0644\u0649 \u0627\u0644\u0639\u0646\u0635\u0631 \u0628\u0633\u0631\u0639\u0629.',
-    imageRequiredHint: '\u0623\u0636\u0641 \u0635\u0648\u0631\u0629 \u0648\u0627\u0636\u062d\u0629 \u062d\u062a\u0649 \u064a\u062a\u0645\u0643\u0646 \u0627\u0644\u0645\u0633\u0627\u0639\u062f \u0645\u0646 \u062a\u062d\u0644\u064a\u0644 \u0627\u0644\u0639\u0646\u0635\u0631 \u0642\u0628\u0644 \u0627\u0644\u0646\u0634\u0631.',
+    imageRequiredHint: '\u0625\u0636\u0627\u0641\u0629 \u0635\u0648\u0631\u0629 \u062a\u0633\u0627\u0639\u062f \u0641\u064a \u062a\u062d\u0633\u064a\u0646 \u0627\u0644\u0645\u0637\u0627\u0628\u0642\u0629\u060c \u0644\u0643\u0646 \u064a\u0645\u0643\u0646\u0643 \u0627\u0644\u0646\u0634\u0631 \u0628\u062f\u0648\u0646\u0647\u0627.',
     imageMissingError: '\u0641\u0634\u0644 \u0627\u062e\u062a\u064a\u0627\u0631 \u0627\u0644\u0635\u0648\u0631\u0629. \u062d\u0627\u0648\u0644 \u0645\u0631\u0629 \u0623\u062e\u0631\u0649.',
-    noImageTitle: '\u0627\u0644\u0635\u0648\u0631\u0629 \u0645\u0637\u0644\u0648\u0628\u0629 \u0644\u0644\u0639\u0646\u0627\u0635\u0631 \u0627\u0644\u0645\u0639\u062b\u0648\u0631 \u0639\u0644\u064a\u0647\u0627',
-    noImageDescription: '\u064a\u0639\u062a\u0645\u062f \u062a\u062d\u0644\u064a\u0644 \u0627\u0644\u0639\u0646\u0635\u0631 \u0627\u0644\u0645\u0639\u062b\u0648\u0631 \u0639\u0644\u064a\u0647 \u0639\u0644\u0649 \u0635\u0648\u0631\u0629 \u0648\u0627\u0636\u062d\u0629 \u0645\u0639 \u0648\u0635\u0641 \u0642\u0635\u064a\u0631.',
+    noImageTitle: '\u0645\u0634\u0643\u0644\u0629 \u0641\u064a \u0627\u062e\u062a\u064a\u0627\u0631 \u0627\u0644\u0635\u0648\u0631\u0629',
+    noImageDescription: '\u0625\u0630\u0627 \u0641\u0634\u0644 \u0627\u062e\u062a\u064a\u0627\u0631 \u0627\u0644\u0635\u0648\u0631\u0629\u060c \u064a\u0645\u0643\u0646\u0643 \u0645\u062a\u0627\u0628\u0639\u0629 \u0627\u0644\u0646\u0634\u0631 \u0628\u062f\u0648\u0646 \u0635\u0648\u0631\u0629.',
     aiHint: '\u0627\u0628\u062f\u0623 \u0628\u0623\u0642\u0648\u0649 \u0627\u0644\u062a\u0641\u0627\u0635\u064a\u0644 \u0627\u0644\u0645\u0645\u064a\u0632\u0629 \u062d\u062a\u0649 \u062a\u0635\u0628\u062d \u0627\u0644\u0645\u0637\u0627\u0628\u0642\u0629 \u0623\u0633\u0631\u0639.',
     analyzeFound: '\u062d\u0644\u0644 \u0647\u0630\u0627 \u0627\u0644\u0639\u0646\u0635\u0631',
+    analyzeFoundLoading: '\u062c\u0627\u0631\u064d \u0627\u0644\u062a\u062d\u0644\u064a\u0644...',
     foundImageRequiredTitle: '\u0627\u0644\u0635\u0648\u0631\u0629 \u0645\u0637\u0644\u0648\u0628\u0629',
     foundImageRequiredDescription: '\u0627\u0631\u0641\u0639 \u0635\u0648\u0631\u0629 \u0648\u0627\u0636\u062d\u0629 \u062d\u062a\u0649 \u064a\u062d\u0644\u0644 \u0627\u0644\u0645\u0633\u0627\u0639\u062f \u0627\u0644\u0639\u0646\u0635\u0631 \u0642\u0628\u0644 \u0627\u0644\u0646\u0634\u0631.',
     reviewTitle: '\u0631\u0627\u062c\u0639 \u0627\u0642\u062a\u0631\u0627\u062d\u0627\u062a \u0627\u0644\u0645\u0633\u0627\u0639\u062f',
@@ -142,8 +151,11 @@ const createPostCopy: Record<Language, CreatePostCopy> = {
     aiSuggestedMaterial: '\u0627\u0644\u062e\u0627\u0645\u0629',
     aiSuggestedFeatures: '\u0627\u0644\u062a\u0641\u0627\u0635\u064a\u0644 \u0627\u0644\u0645\u0645\u064a\u0632\u0629',
     publishReviewedFound: '\u0627\u0646\u0634\u0631 \u0627\u0644\u0628\u0644\u0627\u063a \u0628\u0639\u062f \u0627\u0644\u0645\u0631\u0627\u062c\u0639\u0629',
+    publishReviewedFoundLoading: '\u062c\u0627\u0631\u064d \u0627\u0644\u0646\u0634\u0631...',
     submitLost: '\u0646\u0634\u0631 \u0628\u0644\u0627\u063a \u0645\u0641\u0642\u0648\u062f',
+    submitLostLoading: '\u062c\u0627\u0631\u064d \u0627\u0644\u0646\u0634\u0631...',
     submitFound: '\u0646\u0634\u0631 \u0628\u0644\u0627\u063a \u0645\u0639\u062b\u0648\u0631 \u0639\u0644\u064a\u0647',
+    submitFoundLoading: '\u062c\u0627\u0631\u064d \u0627\u0644\u0646\u0634\u0631...',
     backToCreate: '\u0627\u0644\u0639\u0648\u062f\u0629 \u0644\u0623\u0646\u0648\u0627\u0639 \u0627\u0644\u0628\u0644\u0627\u063a',
   },
 };

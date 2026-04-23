@@ -9,3 +9,4 @@ build/
 /*.png
 __pycache__/
 *.pyc
+ai/.translation_cache.json

@@ -8,10 +8,11 @@ type ReportLostItemScreenProps = {
   copy: CreatePostCopy;
   palette: Palette;
   isArabic: boolean;
+  isSubmitting?: boolean;
   onBack: () => void;
   onSubmitPost: (post: FeedPost) => void;
 };
 
 export function ReportLostItemScreen(props: ReportLostItemScreenProps) {
-  return <ReportItemForm {...props} variant="lost" />;
+  return <ReportItemForm {...props} variant="lost" isSubmitting={props.isSubmitting} />;
 }

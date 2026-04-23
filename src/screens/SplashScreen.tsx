@@ -1,6 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import React, { useEffect, useRef } from 'react';
-import { Animated, Easing, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Animated, Easing, Image, Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { AuthCopy } from '../constants/authCopy';
@@ -140,9 +140,7 @@ export function SplashScreen({ copy, palette, isDark, onDone, onToggleTheme, set
           <Animated.View
             style={[styles.ringSecondary, { borderColor: palette.accentSoft, transform: [{ scale: ringScale }] }]}
           />
-          <View style={[styles.logoCore, { backgroundColor: palette.textPrimary }]}>
-            <Text style={[styles.logoText, { color: palette.accentStrong }]}>L&F</Text>
-          </View>
+          <Image source={require('../../assets/logo/FinalLogo.png')} style={styles.logoImage} resizeMode="contain" />
         </Animated.View>
 
         <View style={[styles.heroCard, { backgroundColor: palette.card, borderColor: palette.border }]}>
@@ -241,7 +239,8 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 28,
+    marginTop: 8,
+    marginBottom: 4,
     shadowColor: '#9FBF2A',
     shadowOffset: { width: 0, height: 20 },
     shadowOpacity: 0.2,
@@ -264,17 +263,9 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     opacity: 0.35,
   },
-  logoCore: {
-    width: 104,
-    height: 104,
-    borderRadius: 28,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  logoText: {
-    fontSize: 34,
-    fontWeight: '800',
-    letterSpacing: 1,
+  logoImage: {
+    width: 137,
+    height: 102,
   },
   title: {
     fontSize: 30,
@@ -289,7 +280,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 22,
     paddingVertical: 20,
     alignItems: 'center',
-    marginBottom: 18,
+    marginBottom: 14,
   },
   subtitle: {
     marginTop: 10,
@@ -314,3 +305,6 @@ const styles = StyleSheet.create({
     letterSpacing: 0.4,
   },
 });
+
+
+

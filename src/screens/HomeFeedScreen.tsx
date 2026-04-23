@@ -1,6 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import React, { useMemo, useState } from 'react';
-import { Animated, Image, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Animated, Image, Modal, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { AmbientBackground } from '../components/AmbientBackground';
@@ -42,6 +42,7 @@ export function HomeFeedScreen({
   const [filter, setFilter] = useState<'all' | 'lost' | 'found'>('all');
   const [category, setCategory] = useState<'all' | HomeFeedItem['category']>('all');
   const [query, setQuery] = useState('');
+  const [previewImageUri, setPreviewImageUri] = useState<string | null>(null);
   const { headerAnimatedStyle, getItemAnimatedStyle } = useProfilePageMotion();
   const activeCategoryTextColor = getReadableChipTextColor(palette.textPrimary);
 
@@ -213,7 +214,9 @@ export function HomeFeedScreen({
                 </View>
 
                 {post.image ? (
-                  <Image source={{ uri: post.image }} style={styles.postImage} resizeMode="cover" />
+                  <Pressable onPress={() => setPreviewImageUri(post.image)} style={styles.postImageTapTarget}>
+                    <Image source={{ uri: post.image }} style={styles.postImage} resizeMode="cover" />
+                  </Pressable>
                 ) : (
                   <View style={[styles.imagePlaceholder, { backgroundColor: isLost ? '#FAD2D5' : '#DDEFCB' }]}>
                     <Ionicons
@@ -263,6 +266,21 @@ export function HomeFeedScreen({
 
         <View style={{ height: 140 }} />
       </Animated.ScrollView>
+
+      <Modal
+        visible={Boolean(previewImageUri)}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setPreviewImageUri(null)}
+        statusBarTranslucent
+      >
+        <View style={styles.previewBackdrop}>
+          <Pressable style={styles.previewCloseButton} onPress={() => setPreviewImageUri(null)}>
+            <Ionicons name="close" size={22} color="#ffffff" />
+          </Pressable>
+          {previewImageUri ? <Image source={{ uri: previewImageUri }} style={styles.previewImage} resizeMode="contain" /> : null}
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -460,6 +478,10 @@ const styles = StyleSheet.create({
     height: 160,
     borderRadius: 20,
   },
+  postImageTapTarget: {
+    borderRadius: 20,
+    overflow: 'hidden',
+  },
   imageLabel: {
     fontSize: 12,
     fontWeight: '600',
@@ -497,5 +519,29 @@ const styles = StyleSheet.create({
   },
   textRight: {
     textAlign: 'right',
+  },
+  previewBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.9)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 28,
+  },
+  previewCloseButton: {
+    position: 'absolute',
+    top: 48,
+    right: 20,
+    width: 40,
+    height: 40,
+    borderRadius: 999,
+    backgroundColor: 'rgba(0,0,0,0.45)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 2,
+  },
+  previewImage: {
+    width: '100%',
+    height: '100%',
   },
 });

@@ -13,6 +13,7 @@ type FoundItemReviewScreenProps = {
   palette: Palette;
   isArabic: boolean;
   draft: AiFoundAnalysisDraft;
+  isPublishing?: boolean;
   onBack: () => void;
   onPublish: (payload: { title: string; description: string; category: FeedPost['category']; aiDraft: AiFoundAnalysisDraft }) => void;
 };
@@ -22,6 +23,7 @@ export function FoundItemReviewScreen({
   palette,
   isArabic,
   draft,
+  isPublishing = false,
   onBack,
   onPublish,
 }: FoundItemReviewScreenProps) {
@@ -36,7 +38,7 @@ export function FoundItemReviewScreen({
   const canPublish = title.trim().length > 0 && summary.trim().length > 0;
 
   const handlePublish = () => {
-    if (!canPublish) return;
+    if (!canPublish || isPublishing) return;
 
     onPublish({
       title: title.trim(),
@@ -98,9 +100,18 @@ export function FoundItemReviewScreen({
           <TextInput
             value={title}
             onChangeText={setTitle}
-            style={[styles.input, { color: palette.textPrimary, borderColor: palette.border, textAlign: isArabic ? 'right' : 'left' }]}
+            style={[
+              styles.input,
+              {
+                color: palette.textPrimary,
+                borderColor: palette.border,
+                textAlign: isArabic ? 'right' : 'left',
+                writingDirection: isArabic ? 'rtl' : 'ltr',
+              },
+            ]}
             placeholder={copy.aiSuggestedTitle}
             placeholderTextColor={palette.textSecondary}
+            keyboardType="default"
           />
 
           <Text style={[styles.sectionTitle, { color: palette.textPrimary }, isArabic && styles.textRight]}>{copy.aiSuggestedSummary}</Text>
@@ -108,18 +119,36 @@ export function FoundItemReviewScreen({
             value={summary}
             onChangeText={setSummary}
             multiline
-            style={[styles.textArea, { color: palette.textPrimary, borderColor: palette.border, textAlign: isArabic ? 'right' : 'left' }]}
+            style={[
+              styles.textArea,
+              {
+                color: palette.textPrimary,
+                borderColor: palette.border,
+                textAlign: isArabic ? 'right' : 'left',
+                writingDirection: isArabic ? 'rtl' : 'ltr',
+              },
+            ]}
             placeholder={copy.aiSuggestedSummary}
             placeholderTextColor={palette.textSecondary}
+            keyboardType="default"
           />
 
           <Text style={[styles.sectionTitle, { color: palette.textPrimary }, isArabic && styles.textRight]}>{copy.aiSuggestedBrand}</Text>
           <TextInput
             value={brand}
             onChangeText={setBrand}
-            style={[styles.input, { color: palette.textPrimary, borderColor: palette.border, textAlign: isArabic ? 'right' : 'left' }]}
+            style={[
+              styles.input,
+              {
+                color: palette.textPrimary,
+                borderColor: palette.border,
+                textAlign: isArabic ? 'right' : 'left',
+                writingDirection: isArabic ? 'rtl' : 'ltr',
+              },
+            ]}
             placeholder={copy.aiSuggestedBrand}
             placeholderTextColor={palette.textSecondary}
+            keyboardType="default"
           />
 
           <View style={styles.rowGroup}>
@@ -128,9 +157,18 @@ export function FoundItemReviewScreen({
               <TextInput
                 value={color}
                 onChangeText={setColor}
-                style={[styles.input, { color: palette.textPrimary, borderColor: palette.border, textAlign: isArabic ? 'right' : 'left' }]}
+                style={[
+                  styles.input,
+                  {
+                    color: palette.textPrimary,
+                    borderColor: palette.border,
+                    textAlign: isArabic ? 'right' : 'left',
+                    writingDirection: isArabic ? 'rtl' : 'ltr',
+                  },
+                ]}
                 placeholder={copy.aiSuggestedColor}
                 placeholderTextColor={palette.textSecondary}
+                keyboardType="default"
               />
             </View>
             <View style={styles.rowItem}>
@@ -138,9 +176,18 @@ export function FoundItemReviewScreen({
               <TextInput
                 value={material}
                 onChangeText={setMaterial}
-                style={[styles.input, { color: palette.textPrimary, borderColor: palette.border, textAlign: isArabic ? 'right' : 'left' }]}
+                style={[
+                  styles.input,
+                  {
+                    color: palette.textPrimary,
+                    borderColor: palette.border,
+                    textAlign: isArabic ? 'right' : 'left',
+                    writingDirection: isArabic ? 'rtl' : 'ltr',
+                  },
+                ]}
                 placeholder={copy.aiSuggestedMaterial}
                 placeholderTextColor={palette.textSecondary}
+                keyboardType="default"
               />
             </View>
           </View>
@@ -149,18 +196,29 @@ export function FoundItemReviewScreen({
           <TextInput
             value={features}
             onChangeText={setFeatures}
-            style={[styles.input, { color: palette.textPrimary, borderColor: palette.border, textAlign: isArabic ? 'right' : 'left' }]}
+            style={[
+              styles.input,
+              {
+                color: palette.textPrimary,
+                borderColor: palette.border,
+                textAlign: isArabic ? 'right' : 'left',
+                writingDirection: isArabic ? 'rtl' : 'ltr',
+              },
+            ]}
             placeholder={copy.aiSuggestedFeatures}
             placeholderTextColor={palette.textSecondary}
+            keyboardType="default"
           />
         </View>
 
         <Pressable
-          style={[styles.publishButton, { backgroundColor: palette.accent, opacity: canPublish ? 1 : 0.45 }]}
+          style={[styles.publishButton, { backgroundColor: palette.accent, opacity: canPublish && !isPublishing ? 1 : 0.45 }]}
           onPress={handlePublish}
-          disabled={!canPublish}
+          disabled={!canPublish || isPublishing}
         >
-          <Text style={styles.publishButtonText}>{copy.publishReviewedFound}</Text>
+          <Text style={styles.publishButtonText}>
+            {isPublishing ? copy.publishReviewedFoundLoading : copy.publishReviewedFound}
+          </Text>
         </Pressable>
 
         <View style={{ height: 120 }} />

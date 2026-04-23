@@ -46,6 +46,8 @@ export type HomeCopy = {
   aiSearchReasonLabel: string;
   aiSearchEmpty: string;
   aiSearchUnavailable: string;
+  aiSearchScoreTraceTitle: string;
+  aiSearchScoreTraceEmpty: string;
 };
 
 const homeCopy: Record<Language, HomeCopy> = {
@@ -95,6 +97,8 @@ const homeCopy: Record<Language, HomeCopy> = {
     aiSearchReasonLabel: 'Why this might match',
     aiSearchEmpty: 'No strong matches yet. Try a clearer description or add more distinctive details.',
     aiSearchUnavailable: 'AI search is unavailable right now. Add your API key to enable live matching.',
+    aiSearchScoreTraceTitle: 'Score trace',
+    aiSearchScoreTraceEmpty: 'No candidate scores yet.',
   },
   ar: {
     appName: '\u0627\u0644\u0645\u0641\u0642\u0648\u062f\u0627\u062a \u0648\u0627\u0644\u0645\u0648\u062c\u0648\u062f\u0627\u062a',
@@ -142,6 +146,8 @@ const homeCopy: Record<Language, HomeCopy> = {
     aiSearchReasonLabel: '\u0633\u0628\u0628 \u0627\u0644\u0645\u0637\u0627\u0628\u0642\u0629',
     aiSearchEmpty: '\u0644\u0627 \u062a\u0648\u062c\u062f \u0645\u0637\u0627\u0628\u0642\u0627\u062a \u0642\u0648\u064a\u0629 \u0628\u0639\u062f. \u062c\u0631\u0628 \u0648\u0635\u0641\u064b\u0627 \u0623\u0648\u0636\u062d \u0623\u0648 \u0623\u0636\u0641 \u062a\u0641\u0627\u0635\u064a\u0644 \u0645\u0645\u064a\u0632\u0629.',
     aiSearchUnavailable: '\u0628\u062d\u062b \u0627\u0644\u0645\u0633\u0627\u0639\u062f \u063a\u064a\u0631 \u0645\u062a\u0627\u062d \u062d\u0627\u0644\u064a\u064b\u0627. \u0623\u0636\u0641 \u0645\u0641\u062a\u0627\u062d API \u0644\u062a\u0641\u0639\u064a\u0644 \u0627\u0644\u0645\u0637\u0627\u0628\u0642\u0629 \u0627\u0644\u062d\u064a\u0629.',
+    aiSearchScoreTraceTitle: '\u062a\u062a\u0628\u0639 \u0627\u0644\u062f\u0631\u062c\u0627\u062a',
+    aiSearchScoreTraceEmpty: '\u0644\u0627 \u062a\u0648\u062c\u062f \u062f\u0631\u062c\u0627\u062a \u0645\u0631\u0634\u062d\u064a\u0646 \u0628\u0639\u062f.',
   },
 };
 
